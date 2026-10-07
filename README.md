@@ -100,8 +100,15 @@ hasilnya (`web/dasbor.html`) ikut ter-commit.
 
 1. Buat repo GitHub **private**, push seluruh folder ini.
 2. Railway → New Project → Deploy from GitHub repo.
-3. **Settings → Root Directory → `web`.** Tanpa ini Railway akan mencoba
-   membangun akar repo yang tidak punya package.json.
+3. **Settings → Root Directory → `web`.** WAJIB, dan ini yang pertama kali
+   menggagalkan deploy: tanpa itu Railpack memeriksa akar repo, hanya menemukan
+   folder dan satu skrip Python, lalu berhenti dengan "could not determine how
+   to build the app". Railway sendiri menawarkan tombol **Set root directory**
+   di layar kegagalannya.
+
+   Port TIDAK boleh dipaku di `npm start`. Railway menyuntikkan $PORT dan
+   healthcheck-nya menunggu di situ; `next start -p 3200` akan lolos build
+   lalu gagal deploy karena aplikasinya mendengar di port yang salah.
 4. Isi variabel berikut di Railway → Variables:
 
    | Variabel | Dari mana |

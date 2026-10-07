@@ -3,7 +3,9 @@
   "build": {
     "builder": "NIXPACKS",
     "buildCommand": "npm ci && npm run build",
-    "watchPatterns": ["web/**"]
+    "watchPatterns": [
+      "web/**"
+    ]
   },
   "deploy": {
     "startCommand": "npm run start",
