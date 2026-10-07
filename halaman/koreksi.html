@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Koreksi Call DRU</title>
+<!--
+  HALAMAN KOREKSI - TIDAK IKUT DITERBITKAN
+
+  Berkas ini sengaja TIDAK disuntik ke DRU-dashboard.html dan tidak diunggah ke
+  artifact. Ia dijalankan dari komputermu sendiri lewat server lokal.
+
+  SATU HAL YANG HARUS JELAS: ini BUKAN keamanan.
+  Halaman statis tidak bisa memeriksa siapa pun. Yang melindunginya cuma
+  kenyataan bahwa berkasnya tidak pernah disebarkan. Siapa pun yang bisa
+  membuka berkas ini bisa memakainya. Kalau koreksi perlu dibatasi ke orang
+  tertentu, itu memerlukan server dan gerbang login - bukan halaman ini.
+
+  CARA KERJANYA
+  Tidak ada yang disimpan otomatis. Perubahan dikumpulkan di memori, lalu
+  diunduh sebagai data/koreksi.json. gabung.py membacanya dan MENERAPKAN ULANG
+  tiap kali dashboard dibangun - karena Discord dan Excel dibaca ulang terus,
+  dan tanpa penerapan ulang koreksinya akan tertimpa sumber aslinya.
+-->
+<style>
+:root{--bg:#0b0b0d;--kartu:#141418;--garis:#27272f;--teks:#f4f4f5;--redup:#8b8b94;
+  --kuning:#ffd60a;--hijau:#2ecc71;--merah:#ff4d4f}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--teks);padding:24px 16px 80px;
+  font:14px/1.5 ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif}
+.bungkus{max-width:1250px;margin:0 auto}
+h1{font-size:22px;font-weight:800;margin-bottom:4px}
+h1 span{color:var(--kuning)}
+.peringatan{background:#2a1a08;border:1px solid #5a3a10;color:#ffcf7a;
+  border-radius:10px;padding:10px 13px;font-size:12.5px;margin:14px 0 18px;line-height:1.6}
+.alat{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;
+  position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:5;border-bottom:1px solid var(--garis)}
+input,select,button{font:inherit}
+input[type=search],select{background:var(--kartu);border:1px solid var(--garis);
+  color:var(--teks);border-radius:8px;padding:7px 10px}
+button{background:var(--kartu);border:1px solid var(--garis);color:var(--teks);
+  border-radius:8px;padding:7px 13px;cursor:pointer}
+button.utama{background:var(--kuning);border-color:var(--kuning);color:#111;font-weight:700}
+button:disabled{opacity:.45;cursor:not-allowed}
+.hitung{margin-left:auto;color:var(--redup);font-size:12.5px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{padding:5px 6px;border-bottom:1px solid var(--garis);text-align:right;white-space:nowrap}
+th{color:var(--redup);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;
+  position:sticky;top:52px;background:var(--bg);z-index:4}
+th:nth-child(-n+3),td:nth-child(-n+3){text-align:left}
+tr.ubah{background:#17210f}
+tr.batal{opacity:.4;text-decoration:line-through}
+td input{width:76px;background:transparent;border:1px solid transparent;color:inherit;
+  border-radius:5px;padding:3px 4px;text-align:right;font-variant-numeric:tabular-nums}
+td input:hover{border-color:var(--garis)}
+td input:focus{outline:none;border-color:var(--kuning);background:#1b1b20}
+td select{padding:2px 5px;font-size:12px}
+td.asal{color:var(--redup);font-size:11px}
+.x{color:var(--merah);border:none;background:none;cursor:pointer;font-size:15px;padding:0 6px}
+/* Tombol isi cepat. Sengaja kecil dan tanpa warna mencolok: ia alat bantu
+   hitung, bukan keputusan - yang memutuskan tetap angka yang tersimpan. */
+.isi{border:1px solid var(--garis);background:var(--kartu);color:var(--redup);
+  border-radius:6px;padding:1px 6px;font-size:10px;cursor:pointer;margin-left:3px}
+.isi:hover:not(:disabled){color:var(--kuning);border-color:var(--kuning)}
+.isi:disabled{opacity:.3;cursor:not-allowed}
+td.hasil{white-space:nowrap}
+.kode{background:#101014;border:1px solid var(--garis);border-radius:10px;padding:12px;
+  font:12px/1.5 ui-monospace,Consolas,monospace;color:#b9b9c4;white-space:pre-wrap;
+  max-height:220px;overflow:auto;margin-top:12px}
+</style>
+</head>
+<body>
+<div class="bungkus">
+  <h1>Koreksi <span>Call DRU</span></h1>
+  <p style="color:var(--redup);font-size:12.5px">Ubah angka yang salah baca, atau batalkan baris yang bukan call.</p>
+
+  <div class="peringatan">
+    <b>Dibuka dari laptop, halaman ini bukan pengaman.</b> Berkas statis tidak bisa
+    memeriksa siapa pun. Lewat <code>/koreksi</code> di server ia dijaga gerbang
+    Discord dan hanya terbuka untuk role di <code>KOREKSI_ROLE_IDS</code> —
+    bukan untuk semua member berbayar.
+  </div>
+
+  <div class="alat">
+    <input type="search" id="cari" placeholder="cari ticker / analis / tanggal" size="28">
+    <select id="fAnalis"><option value="">semua analis</option></select>
+    <select id="fStatus">
+      <option value="">semua status</option>
+      <option value="ongoing">ongoing</option>
+      <option value="SL">SL</option>
+      <option value="TP">TP apa pun</option>
+      <option value="BEP">BEP / Closed</option>
+    </select>
+    <select id="fPerlu" title="Baris yang angkanya belum lengkap atau tidak masuk akal">
+      <option value="">semua baris</option>
+      <option value="sl">SL kosong</option>
+      <option value="tp1">TP1 kosong</option>
+      <option value="cacat">angka tidak masuk akal</option>
+      <option value="apa">perlu dilengkapi (gabungan)</option>
+    </select>
+    <label style="color:var(--redup);font-size:12.5px">
+      <input type="checkbox" id="fUbah"> hanya yang diubah</label>
+    <button id="muat">Muat koreksi.json</button>
+    <input type="file" id="berkas" accept=".json" hidden>
+    <button class="utama" id="simpan" disabled>Simpan</button>
+    <span id="kabar" style="font-size:12px;color:var(--redup)"></span>
+    <span class="hitung" id="hitung"></span>
+  </div>
+
+  <table><thead><tr>
+    <th>Analis</th><th>Ticker</th><th>Tanggal</th><th>Entry</th><th>TP1</th><th>TP2</th>
+    <th>TP3</th><th>TP4</th><th>SL</th><th>Hasil %</th><th>Status</th><th>Asal</th><th></th>
+  </tr></thead><tbody id="isi"></tbody></table>
+
+  <div class="kode" id="pratinjau">Belum ada koreksi.</div>
+</div>
+
+<!-- Satu tingkat ke atas: halaman ini tinggal di halaman/, datanya di data/. -->
+<script src="../data/dataset.js"></script>
+<script>
+const CALLS = (window.DATA && window.DATA.calls) || [];
+const kunci = c => `${c.analis}|${c.ticker}|${c.tanggal}`;
+let koreksi = {};                          // kunci -> {bidang: nilai}
+
+const ANGKA = ["entry","entryAtas","tp1","tp2","tp3","tp4","sl"];
+const nilai = (c,f) => {
+  const k = koreksi[kunci(c)];
+  return (k && k[f] != null) ? k[f] : c[f];
+};
+
+function set(c, f, v){
+  const kk = kunci(c);
+  koreksi[kk] = koreksi[kk] || {};
+  // Nilai yang dikembalikan ke aslinya DIHAPUS dari koreksi, bukan disimpan
+  // sama dengan aslinya. Kalau tidak, berkas koreksi tumbuh berisi "perubahan"
+  // yang tidak mengubah apa pun, dan tidak ada yang bisa membacanya lagi.
+  if (v === null || v === "" || v === c[f]) delete koreksi[kk][f];
+  else koreksi[kk][f] = v;
+  if (!Object.keys(koreksi[kk]).length) delete koreksi[kk];
+  gambar();
+}
+
+function batalkan(c){
+  const kk = kunci(c);
+  if (koreksi[kk] && koreksi[kk].dibatalkan) delete koreksi[kk];
+  else koreksi[kk] = Object.assign({}, koreksi[kk], {dibatalkan:true});
+  gambar();
+}
+
+function saring(){
+  const q = document.getElementById("cari").value.trim().toLowerCase();
+  const an = document.getElementById("fAnalis").value;
+  const st = document.getElementById("fStatus").value;
+  const hanyaUbah = document.getElementById("fUbah").checked;
+  const perlu = document.getElementById("fPerlu").value;
+  return CALLS.filter(c=>{
+    if (an && c.analis !== an) return false;
+    const stc = String(nilai(c,"status") ?? c.status ?? "");
+    if (st === "TP" ? !stc.startsWith("TP")
+        : st === "BEP" ? !(stc === "BEP" || stc === "Closed")
+        : st && stc !== st) return false;
+
+    // Baris yang menuntut tangan manusia. "SL kosong" paling sering dipakai:
+    // analis kadang menulis stoploss sebagai kalimat yang tidak terbaca mesin,
+    // dan tanpa SL verifikasi harga tidak punya batas bawah untuk diuji.
+    if (perlu) {
+      const kosongSL  = nilai(c,"sl") == null || nilai(c,"sl") === "";
+      const kosongTP1 = nilai(c,"tp1") == null || nilai(c,"tp1") === "";
+      const cacat = !!c.cacat;
+      const cocok = perlu === "sl" ? kosongSL
+                  : perlu === "tp1" ? kosongTP1
+                  : perlu === "cacat" ? cacat
+                  : (kosongSL || kosongTP1 || cacat);
+      if (!cocok) return false;
+    }
+    if (hanyaUbah && !koreksi[kunci(c)]) return false;
+    if (q && !`${c.analis} ${c.ticker} ${c.tanggal}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function gambar(){
+  const baris = saring();
+    // BEP  = keluar di titik impas (0%).
+  // Closed = ditutup manual sebelum TP/SL; isi kolom "hasil %" dengan angka
+  //          sebenarnya, karena tidak ada level yang bisa menghitungnya.
+  const STATUS = ["ongoing","TP1","TP2","TP3","TP4","SL","BEP","Closed","tak-terisi"];
+  document.getElementById("isi").innerHTML = baris.slice(0, 400).map((c,i)=>{
+    const k = koreksi[kunci(c)];
+    const kelas = k ? (k.dibatalkan ? "batal" : "ubah") : "";
+    const sel = String(nilai(c,"status") ?? "");
+    return `<tr class="${kelas}" data-i="${i}">
+      <td>${c.analis}</td><td><b>${c.ticker}</b></td><td>${c.tanggal}</td>
+      ${["entry","tp1","tp2","tp3","tp4","sl"].map(f=>
+        `<td><input data-f="${f}" value="${nilai(c,f) ?? ""}" inputmode="decimal"></td>`).join("")}
+      <td class="hasil"><input data-f="persen" value="${nilai(c,"persen") ?? ""}" inputmode="decimal"
+          style="width:62px" title="Hasil akhir dalam persen. Isi tangan, atau pakai tombol di sebelahnya.">
+        <button class="isi" data-isi="kini" ${c.hargaKini==null?"disabled":""}
+          title="${c.hargaKini==null?"Harga sekarang tidak tersedia untuk ticker ini"
+                 :"Hitung dari entry ke harga sekarang ("+c.hargaKini+")"}">kini</button>
+        <button class="isi" data-isi="sl" ${nilai(c,"sl")==null?"disabled":""}
+          title="Hitung dari entry ke stoploss">SL</button></td>
+      <td><select data-f="status">${STATUS.map(s=>
+        `<option${s===sel?" selected":""}>${s}</option>`).join("")}</select></td>
+      <td class="asal">${c.asal}${c.dikoreksi?" · dikoreksi":""}</td>
+      <td><button class="x" title="batalkan baris ini">✕</button></td></tr>`;
+  }).join("");
+
+  // Elemen digambar ulang tiap kali, jadi listenernya dipasang ulang juga.
+  document.querySelectorAll("#isi tr").forEach(tr=>{
+    const c = baris[+tr.dataset.i];
+    tr.querySelectorAll("input[data-f]").forEach(inp=>{
+      inp.onchange = ()=>{
+        const t = inp.value.trim().replace(/,(?=\d{3}(?!\d))/g,"").replace(",",".");
+        set(c, inp.dataset.f, t === "" ? null : Number(t));
+      };
+    });
+    tr.querySelector("select").onchange = e => set(c, "status", e.target.value);
+
+    // Dua pintasan hitung. Keduanya memakai entry YANG BERLAKU - termasuk
+    // entry yang baru saja dikoreksi di baris yang sama - supaya hasilnya
+    // konsisten dengan angka yang tersimpan, bukan dengan angka aslinya.
+    tr.querySelectorAll("button.isi").forEach(tb=>{
+      tb.onclick = ()=>{
+        const e = Number(nilai(c,"entry"));
+        if(!e) return alert("Entry belum ada. Isi entry dulu.");
+        const tujuan = tb.dataset.isi === "kini" ? c.hargaKini : Number(nilai(c,"sl"));
+        if(tujuan == null || isNaN(tujuan)) return;
+        set(c, "persen", +(((tujuan - e) / e) * 100).toFixed(2));
+      };
+    });
+    tr.querySelector("button.x").onclick = ()=> batalkan(c);
+  });
+
+  const n = Object.keys(koreksi).length;
+  document.getElementById("hitung").textContent =
+    `${baris.length} baris ditampilkan${baris.length>400?" (dipotong 400)":""} · ${n} koreksi`;
+  document.getElementById("simpan").disabled = n === 0;
+  document.getElementById("simpan").textContent =
+    window.DI_SERVER ? "Simpan ke server" : "Unduh koreksi.json";
+  document.getElementById("pratinjau").textContent =
+    n ? JSON.stringify(koreksi, null, 1) : "Belum ada koreksi.";
+}
+
+/* SATU berkas, dua perilaku.
+   Dibuka dari server (lewat /koreksi) ia menyimpan ke volume lewat API.
+   Dibuka dari laptop lewat http.server ia mengunduh berkas, karena tidak ada
+   server yang bisa menerimanya. Memisahkannya jadi dua salinan berarti dua
+   halaman yang harus dijaga tetap sama, dan itu tidak akan bertahan. */
+const kabar = (t, warna)=>{
+  const el = document.getElementById("kabar");
+  el.textContent = t;
+  el.style.color = warna || "var(--redup)";
+};
+
+document.getElementById("simpan").onclick = async ()=>{
+  const tombol = document.getElementById("simpan");
+  if(!window.DI_SERVER){
+    const b = new Blob([JSON.stringify(koreksi, null, 1)], {type:"application/json"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(b);
+    a.download = "koreksi.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+    kabar("Terunduh. Taruh di data/koreksi.json lalu jalankan perbarui.py.");
+    return;
+  }
+  tombol.disabled = true;
+  kabar("menyimpan\u2026");
+  try{
+    const r = await fetch("/api/koreksi", {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify(koreksi),
+    });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.galat || ("HTTP " + r.status));
+    kabar(`Tersimpan: ${j.jumlah} koreksi, oleh ${j.oleh}.`, "var(--hijau,#2ecc71)");
+  }catch(e){
+    kabar("Gagal: " + e.message, "var(--merah)");
+  }finally{
+    tombol.disabled = false;
+  }
+};
+
+// Memuat koreksi yang sudah ada supaya bisa dilanjutkan, bukan ditulis ulang
+// dari nol tiap kali. fetch() ke berkas lokal diblokir CORS, jadi berkasnya
+// dipilih manual - cara yang sama-sama jalan lewat server maupun klik ganda.
+document.getElementById("muat").onclick = ()=> document.getElementById("berkas").click();
+document.getElementById("berkas").onchange = e=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{ try { koreksi = JSON.parse(r.result); gambar(); }
+                   catch(err){ alert("Bukan JSON yang sah: " + err.message); } };
+  r.readAsText(f);
+};
+
+/* Di server, koreksi yang sudah tersimpan dimuat sendiri. Tanpa ini orang
+   akan mulai dari layar kosong dan penyimpanan berikutnya MENIMPA seluruh
+   koreksi yang sudah ada - API menyimpan apa adanya, bukan menggabungkan. */
+if(window.DI_SERVER){
+  fetch("/api/koreksi")
+    .then(r=> r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)))
+    .then(j=>{ koreksi = j || {}; gambar();
+               kabar(`${Object.keys(koreksi).length} koreksi dimuat dari server.`); })
+    .catch(e=> kabar("Tidak bisa memuat koreksi tersimpan: " + e.message, "var(--merah)"));
+}
+
+const an = document.getElementById("fAnalis");
+[...new Set(CALLS.map(c=>c.analis))].sort().forEach(x=>{
+  const o = document.createElement("option"); o.value = o.textContent = x; an.appendChild(o);
+});
+["cari","fAnalis","fStatus","fPerlu","fUbah"].forEach(id=>
+  document.getElementById(id).addEventListener("input", gambar));
+gambar();
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+# ---- RAHASIA. Satu baris ini yang paling penting di berkas ini. ----
+# .env.local memuat DRU_BOT_TOKEN dan DISCORD_CLIENT_SECRET. Pemegang client
+# secret bisa menyamar sebagai aplikasimu; pemegang bot token bisa membaca
+# seluruh channel yang botnya bisa lihat.
+.env
+.env.local
+.env.*.local
+
+# ---- Hasil build ----
+node_modules/
+.next/
+__pycache__/
+*.pyc
+
+# ---- Data turunan ----
+# Semuanya bisa dibangun ulang dengan `python perbarui.py`, dan sebagiannya
+# besar: data/harga/ berisi 198 berkas (2,6 MB) yang berubah tiap hari.
+# Yang TIDAK diabaikan: data/koreksi.json, karena itu tulisan tangan manusia
+# dan tidak bisa dibangun ulang oleh siapa pun.
+data/*.json
+data/*.js
+data/harga/
+data/*.log
+data/*.txt
+!data/koreksi.json
+
+# ---- Hasil akhir ----
+# Dibangun ulang tiap kali pipeline jalan. web/dasbor.html TIDAK diabaikan:
+# itu yang disajikan Railway, dan di sana tidak ada Python untuk membuatnya.
+DRU-dashboard.html
+
+# ---- Jurnal Excel ----
+# Sumber asli ada di Downloads; salinannya tidak perlu ikut repo.
+*.xlsx
+.claude/

@@ -1,0 +1,1042 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DRU Analyst</title>
+<style>
+/* Token warna. Aksen (--a1/--a2) DIGANTI saat analis dipilih, jadi seluruh
+   halaman ikut berganti rona - bukan cuma kartunya. */
+:root{
+  --bg:#09090b; --kartu:rgba(18,18,22,.84); --kartu2:rgba(26,26,32,.86);
+  --kartu-solid:#121216; --garis:#26262d;
+  --teks:#f4f4f5; --redup:#8b8b94;
+  --a1:#ffd60a; --a2:#f59e0b;
+  --hijau:#2ecc71; --merah:#ff4d4f;
+  --r:20px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--teks);
+  font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  padding:28px 16px 64px; -webkit-font-smoothing:antialiased;
+}
+.bungkus{max-width:1180px;margin:0 auto;position:relative;z-index:1}
+/* Latar teks melaju. position:fixed + z-index di bawah isi, dan
+   pointer-events:none supaya tidak pernah mencegat klik. */
+#latar{position:fixed;inset:0;width:100%;height:100%;z-index:0;
+  pointer-events:none;opacity:.62}
+header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+header h1{font-size:30px;font-weight:800;letter-spacing:-.02em}
+header h1 span{background:linear-gradient(95deg,var(--a1),var(--a2));
+  -webkit-background-clip:text;background-clip:text;color:transparent;transition:none}
+.jejak{color:var(--redup);font-size:13px}
+
+/* ---- Folder ---------------------------------------------------------------
+   Bentuknya dibuat dari satu pseudo-element: tab di kiri atas yang mewarisi
+   latar kartunya. Tidak ada clip-path, tidak ada SVG - sudutnya tetap bisa
+   dibulatkan dan isinya tetap teks biasa yang bisa dipilih dan dibaca pembaca
+   layar. */
+.rak{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;margin:40px 0 34px}
+.folder{
+  position:relative; width:206px; min-height:118px; margin-top:16px;
+  background:var(--kartu); border:1px solid var(--garis);
+  border-radius:4px var(--r) var(--r) var(--r);
+  padding:13px 15px; cursor:pointer; text-align:left; color:inherit; font:inherit;
+  display:flex; flex-direction:column; gap:3px;
+  transition:transform .3s cubic-bezier(.2,.8,.2,1),box-shadow .3s,border-color .3s,background .3s;
+}
+.folder::before{                       /* tab folder */
+  content:""; position:absolute; top:-15px; left:-1px; width:52%; height:16px;
+  background:var(--kartu); border:1px solid var(--garis); border-bottom:none;
+  border-radius:8px 14px 0 0; transition:background .3s,border-color .3s;
+}
+.folder::after{                        /* garis gradasi tipis di bibir folder */
+  content:""; position:absolute; top:0; left:14px; right:14px; height:2px;
+  border-radius:2px; background:linear-gradient(90deg,var(--c1),var(--c2));
+  opacity:.5; transition:opacity .3s;
+}
+.folder:hover{transform:translateY(-5px)}
+.folder:focus-visible{outline:2px solid var(--c1);outline-offset:3px}
+.folder[aria-pressed="true"]{
+  background:linear-gradient(160deg,color-mix(in srgb,var(--c1) 22%,#0d0d10),#0d0d10);
+  border-color:color-mix(in srgb,var(--c1) 55%,transparent);
+  box-shadow:0 0 0 1px color-mix(in srgb,var(--c1) 30%,transparent),
+             0 20px 48px -22px var(--c1), 0 0 34px -14px var(--c1);
+  transform:translateY(-7px);
+}
+.folder[aria-pressed="true"]::before{
+  background:color-mix(in srgb,var(--c1) 20%,#0d0d10);
+  border-color:color-mix(in srgb,var(--c1) 50%,transparent);
+}
+.folder[aria-pressed="true"]::after{opacity:1}
+.folder .nm{font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px}
+.folder .nm img{width:24px;height:24px;border-radius:50%;flex:0 0 auto;object-fit:cover;
+  box-shadow:0 0 0 1.5px color-mix(in srgb,var(--c1) 70%,transparent),0 0 12px -2px var(--c1)}
+.folder .nm i{width:9px;height:9px;border-radius:50%;flex:0 0 auto;
+  background:linear-gradient(140deg,var(--c1),var(--c2));
+  box-shadow:0 0 9px var(--c1)}
+.folder .ang{font-size:27px;font-weight:800;letter-spacing:-.03em;margin-top:5px;
+  background:linear-gradient(120deg,var(--c1),var(--c2));
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.folder .ket{font-size:11.5px;color:var(--redup)}
+.folder.arsip .nm::after{content:"arsip";font-size:9.5px;font-weight:700;
+  letter-spacing:.09em;color:var(--redup);border:1px solid var(--garis);
+  padding:0 5px;border-radius:4px}
+.pisah{width:1px;align-self:stretch;margin:18px 6px 0;
+  background:linear-gradient(180deg,transparent,var(--garis),transparent)}
+
+/* ---- Widget ---- */
+.grid{display:grid;gap:14px;grid-template-columns:repeat(12,1fr)}
+.w{background:var(--kartu);border:1px solid var(--garis);border-radius:var(--r);
+   padding:16px;position:relative;overflow:hidden}
+/* Cahaya gradasi tipis di pojok tiap widget - sumber "gradasi" di referensi,
+   dibuat sangat redup supaya angkanya tetap yang paling kontras. */
+.w::before{content:"";position:absolute;inset:-40% 40% 55% -10%;
+  background:radial-gradient(60% 60% at 20% 20%,var(--a1),transparent 70%);
+  opacity:.10;pointer-events:none}
+.w h3{font-size:11px;font-weight:700;color:var(--redup);text-transform:uppercase;
+  letter-spacing:.09em;margin-bottom:10px;display:flex;justify-content:space-between;
+  gap:8px;position:relative}
+.besar{font-size:38px;font-weight:800;letter-spacing:-.03em;line-height:1.05;position:relative}
+.besar.aksen{background:linear-gradient(115deg,var(--a1),var(--a2));
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{font-size:12px;color:var(--redup);margin-top:4px;position:relative}
+.k3{grid-column:span 3}.k4{grid-column:span 4}.k6{grid-column:span 6}
+.k8{grid-column:span 8}.k12{grid-column:span 12}
+@media(max-width:860px){.k3{grid-column:span 6}.k4,.k6,.k8{grid-column:span 12}}
+@media(max-width:560px){.k3{grid-column:span 12}}
+
+/* ---- Mobile: satu folder terbuka + rel avatar -----------------------------
+   Lima folder berdampingan mustahil di lebar ponsel, dan menumpuknya ke bawah
+   memakan satu layar penuh sebelum ada satu angka pun terlihat. Jadi hanya
+   segmen aktif yang tampil sebagai folder; sisanya menyusut jadi avatar bulat
+   di rel kanan, dan Invest jadi kotak di bawahnya - bentuknya sengaja beda
+   karena metriknya juga beda. */
+@media(max-width:700px){
+  .rak{flex-wrap:nowrap;align-items:stretch;gap:12px;margin:34px 0 26px}
+  /* Folder meregang setinggi rel di sebelahnya (4 tombol + jarak). Isinya jauh
+     lebih pendek dari itu, jadi dipusatkan - kalau tidak, ada lubang kosong
+     sebesar sepertiga kartu di bawah teksnya. */
+  .rak .folder{flex:1 1 auto;width:auto;min-height:132px;justify-content:center;gap:5px}
+  .rel{display:flex;flex-direction:column;gap:9px;flex:0 0 auto;
+    justify-content:flex-start;padding-top:2px}
+  .pil2{width:54px;height:54px;padding:0;border:1px solid var(--garis);
+    background:var(--kartu);cursor:pointer;position:relative;
+    display:grid;place-items:center;overflow:hidden;
+    transition:box-shadow .25s,border-color .25s,transform .25s}
+  .pil2.bulat{border-radius:50%}
+  .pil2.kotak{border-radius:15px}
+  .pil2 img{width:100%;height:100%;object-fit:cover}
+  .pil2:active{transform:scale(.94)}
+  .pil2 b{font-size:10px;font-weight:800;letter-spacing:.04em;
+    background:linear-gradient(120deg,var(--c1),var(--c2));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  /* Garis gradasi tipis mengelilingi avatar: satu-satunya penanda segmen yang
+     tersisa setelah namanya hilang. */
+  .pil2::after{content:"";position:absolute;inset:0;border-radius:inherit;
+    box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--c1) 60%,transparent);
+    pointer-events:none}
+  .pisah{display:none}
+}
+.naik{color:var(--hijau)}.turun{color:var(--merah)}
+
+/* Empat tile ringkasan dibuat sekecil mungkin tanpa kehilangan keterbacaan,
+   supaya di ponsel keempatnya muat sebelum harus menggulir. */
+.w.kecil{padding:12px 13px}
+.w.kecil .besar{font-size:27px}
+.w.kecil h3{margin-bottom:5px}
+.w.kecil .sub{font-size:11px;line-height:1.4}
+@media(max-width:700px){
+  .k3{grid-column:span 6}
+  .w.kecil{padding:10px 11px}
+  .w.kecil .besar{font-size:21px;letter-spacing:-.02em}
+  .w.kecil h3{font-size:9.5px;letter-spacing:.06em}
+  .w.kecil .sub{font-size:10px}
+}
+
+/* ---- Panel lipat (<details> bawaan) ---- */
+.lipat{padding:0}
+.lipat::before{display:none}
+.lipat>summary{list-style:none;cursor:pointer;padding:14px 16px;
+  display:flex;align-items:center;gap:10px;justify-content:space-between}
+.lipat>summary::-webkit-details-marker{display:none}
+.lipat>summary .jd{font-size:11px;font-weight:700;color:var(--redup);
+  text-transform:uppercase;letter-spacing:.09em;white-space:nowrap}
+.lipat>summary .rk{font-size:12px;color:var(--teks);opacity:.72;
+  margin-left:auto;text-align:right}
+/* Chevron dibuat dari border, bukan ikon: nol berkas, ikut warna teks. */
+.lipat>summary::after{content:"";flex:0 0 auto;width:7px;height:7px;
+  border-right:2px solid var(--redup);border-bottom:2px solid var(--redup);
+  transform:rotate(45deg) translateY(-2px);transition:transform .2s}
+.lipat[open]>summary::after{transform:rotate(-135deg) translateY(-2px)}
+.lipat[open]>summary{border-bottom:1px solid var(--garis)}
+.isi-lipat{padding:12px 16px 15px}
+.lagi{margin-top:8px}
+.lagi>summary{list-style:none;cursor:pointer;font-size:11px;color:var(--redup);
+  text-decoration:underline;text-underline-offset:3px;width:fit-content}
+.lagi>summary::-webkit-details-marker{display:none}
+
+/* Tombol ticker di tabel: tampil seperti teks tebal biasa supaya tabelnya
+   tidak jadi lautan tombol, tetapi tetap <button> agar bisa di-Tab dan
+   dibacakan sebagai kontrol. */
+button.tk{background:none;border:none;padding:0;font:inherit;font-weight:700;
+  color:var(--teks);cursor:pointer;border-bottom:1px dotted var(--redup)}
+button.tk:hover{color:var(--a1);border-bottom-color:var(--a1)}
+button.tautan{background:none;border:none;padding:0;font:inherit;
+  color:var(--a1);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+
+.bar{display:flex;align-items:center;gap:10px;margin:7px 0;font-size:13px;position:relative}
+.bar b{width:40px;color:var(--redup);font-weight:600}
+.bar .isi{flex:1;height:9px;background:#232329;border-radius:99px;overflow:hidden}
+.bar .isi i{display:block;height:100%;border-radius:99px;
+  background:linear-gradient(90deg,var(--a1),var(--a2))}
+.bar .isi i.rugi{background:linear-gradient(90deg,#ff4d4f,#b3261e)}
+.bar u{width:34px;text-align:right;text-decoration:none;font-variant-numeric:tabular-nums}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 9px;text-align:right;border-bottom:1px solid var(--garis);white-space:nowrap}
+th{color:var(--redup);font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+  position:sticky;top:0;background:var(--kartu-solid)}
+th:first-child,td:first-child{text-align:left}
+tbody tr:hover{background:var(--kartu2)}
+.gulung{max-height:460px;overflow:auto;border-radius:12px;position:relative}
+.lencana{display:inline-block;padding:1px 7px;border-radius:99px;font-size:11px;font-weight:700}
+.l-tp{background:#12351f;color:var(--hijau)}
+.l-sl{background:#3a1416;color:var(--merah)}
+.l-on{background:color-mix(in srgb,var(--a1) 16%,transparent);color:var(--a1)}
+/* BEP dan Closed: selesai, tapi bukan menang dan bukan kalah. Warnanya netral
+   supaya tidak terbaca sebagai salah satu dari keduanya. */
+.l-bep{background:#24242c;color:#aab}
+.sumber{font-size:10px;color:var(--redup);border:1px solid var(--garis);
+  padding:0 5px;border-radius:5px;margin-left:5px;text-decoration:none}
+a.sumber:hover{color:var(--a1);border-color:var(--a1)}
+
+.saring{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px;position:relative}
+.saring button{background:var(--kartu2);border:1px solid var(--garis);color:var(--redup);
+  padding:5px 12px;border-radius:99px;font:inherit;font-size:12px;cursor:pointer}
+.saring button[aria-pressed="true"]{background:linear-gradient(100deg,var(--a1),var(--a2));
+  border-color:transparent;color:#111;font-weight:700}
+
+
+/* ---- Donut ---- */
+/* Tiga kolom: keping kiri, donut, keping kanan. Donut memakai lebar alaminya
+   (auto) supaya kedua sisi keping selalu simetris berapa pun jumlah irisannya. */
+.donat-bungkus{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;
+  align-items:center;justify-items:center}
+.donat{position:relative;flex:0 0 auto;width:132px;height:132px}
+.donat svg{width:132px;height:132px;transform:rotate(-90deg)}
+.donat circle{fill:none;stroke-width:15;transition:stroke-width .18s,opacity .18s}
+.donat circle.sorot{stroke-width:19}
+.donat .tengah{position:absolute;inset:0;display:grid;place-items:center;
+  text-align:center;pointer-events:none;line-height:1.15}
+.donat .tengah b{font-size:21px;font-weight:800;letter-spacing:-.02em;display:block}
+.donat .tengah span{font-size:9.5px;color:var(--redup);text-transform:uppercase;
+  letter-spacing:.08em}
+
+/* Tinggi dikunci setinggi donut dan isinya disebar, jadi chip teratas sejajar
+   puncak donut dan terbawah sejajar dasarnya - memeluk, bukan menggumpal. */
+.keping{display:flex;flex-direction:column;gap:8px;width:100%;
+  min-height:132px;justify-content:space-between}
+.keping.kiri{align-items:flex-end}
+.keping.kanan{align-items:flex-start}
+.keping button{display:inline-flex;align-items:center;gap:6px;
+  background:var(--kartu2);border:1px solid var(--garis);border-radius:99px;
+  padding:4px 10px;font:inherit;font-size:11px;color:var(--teks);cursor:pointer;
+  white-space:nowrap;transition:border-color .18s,box-shadow .18s,transform .18s}
+.keping button:hover,.keping button:focus-visible{outline:none;
+  border-color:color-mix(in srgb,var(--a1) 60%,transparent);
+  box-shadow:0 0 12px -3px var(--a1);transform:translateY(-1px)}
+.keping i{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+.keping u{text-decoration:none;color:var(--redup);font-variant-numeric:tabular-nums}
+
+/* Pemisah bersinar antara kedua diagram. Gradasi memudar di kedua ujungnya
+   supaya terbaca sebagai cahaya, bukan sebagai garis tabel. */
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:26px;position:relative}
+.duo::before{content:"";position:absolute;left:50%;top:6%;bottom:6%;width:1px;
+  background:linear-gradient(180deg,transparent,
+    color-mix(in srgb,var(--a1) 75%,transparent) 35%,
+    color-mix(in srgb,var(--a2) 75%,transparent) 65%,transparent);
+  box-shadow:0 0 11px -1px var(--a1);opacity:.7;pointer-events:none}
+.duo>section>h4{font-size:10.5px;font-weight:700;color:var(--redup);
+  text-transform:uppercase;letter-spacing:.09em;margin-bottom:14px;text-align:center}
+@media(max-width:860px){
+  .duo{grid-template-columns:1fr;gap:30px}
+  /* Satu kolom: pemisahnya ikut berputar jadi mendatar. */
+  .duo::before{left:6%;right:6%;top:50%;bottom:auto;width:auto;height:1px;
+    background:linear-gradient(90deg,transparent,
+      color-mix(in srgb,var(--a1) 75%,transparent) 35%,
+      color-mix(in srgb,var(--a2) 75%,transparent) 65%,transparent)}
+}
+@media(max-width:420px){
+  .donat,.donat svg{width:112px;height:112px}
+  .keping button{padding:3px 8px;font-size:10px}
+}
+
+/* ---- Tooltip kurva ---- */
+.kurvabox{position:relative}
+.kurvabox .garis{position:absolute;top:0;bottom:0;width:1px;
+  background:color-mix(in srgb,var(--a1) 55%,transparent);pointer-events:none;
+  opacity:0;transition:opacity .12s}
+.kurvabox .dot{position:absolute;width:9px;height:9px;border-radius:50%;
+  background:var(--a1);box-shadow:0 0 10px var(--a1);pointer-events:none;
+  transform:translate(-50%,-50%);opacity:0;transition:opacity .12s}
+.kurvabox .tip{position:absolute;pointer-events:none;opacity:0;
+  transform:translate(-50%,-120%);background:#15151a;border:1px solid var(--garis);
+  border-radius:9px;padding:6px 9px;font-size:11.5px;white-space:nowrap;z-index:3;
+  box-shadow:0 10px 26px -12px #000;transition:opacity .12s}
+.kurvabox .tip b{font-size:13px;display:block}
+/* Visibilitas diatur JS, bukan :hover: layar sentuh tidak punya hover, dan
+   tanpa ini angka ikut diperbarui oleh touchmove tapi tak pernah terlihat. */
+
+/* Lencana sumber Discord dibuat menyala tipis supaya terbaca sebagai tautan
+   yang bisa diklik, bukan sekadar label asal data. */
+a.sumber.disc{color:#9aa6ff;border-color:#3b3f7a;
+  background:linear-gradient(180deg,rgba(88,101,242,.16),rgba(88,101,242,.05));
+  box-shadow:0 0 9px -2px rgba(88,101,242,.75)}
+a.sumber.disc:hover{color:#cdd3ff;border-color:#6f7bff;
+  box-shadow:0 0 14px -1px rgba(88,101,242,.95)}
+
+/* Seluruh baris membuka chart; kursornya harus mengatakan itu. */
+tbody tr.klik{cursor:pointer}
+
+/* ---- kartu Invest ---- */
+.inv{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(270px,1fr))}
+.ikartu{background:var(--kartu2);border:1px solid var(--garis);border-radius:14px;
+  padding:13px 14px;position:relative;overflow:hidden}
+.ikartu .atas{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.ikartu .tk{font-weight:800;font-size:17px}
+.ikartu .ret{font-weight:800;font-size:17px;font-variant-numeric:tabular-nums}
+.ikartu .meta{font-size:11.5px;color:var(--redup);margin-top:2px}
+.ikartu p{font-size:12px;color:#b4b4bd;margin-top:9px;line-height:1.55}
+.pisahsaring{width:1px;align-self:stretch;background:var(--garis);margin:0 3px}
+.puncak{font-size:10px;color:var(--redup);margin-left:6px;font-variant-numeric:tabular-nums}
+td .lencana+.lencana{margin-left:5px}
+
+/* Lencana tanya memakai popover bawaan HTML: browser sendiri yang mengurus
+   buka-tutup, Esc, klik di luar, dan urutan fokus. Menulis ulang itu dengan
+   div + onclick berarti membangun ulang semuanya dan melupakan separuhnya -
+   dan tooltip hover tidak pernah bisa dibuka di layar sentuh. */
+button.tanya{margin-left:5px;width:17px;height:17px;padding:0;border-radius:50%;
+  border:1px solid var(--garis);background:var(--kartu2);color:var(--redup);
+  font:700 10px/1 ui-sans-serif,system-ui,sans-serif;cursor:pointer}
+button.tanya:hover{color:var(--a1);border-color:var(--a1)}
+/* white-space:normal WAJIB: popover ini anak dari <td>, dan sel tabel memakai
+   nowrap - tanpa ini isinya jadi satu baris panjang dengan gulir mendatar. */
+[popover].ket{margin:auto;max-width:330px;white-space:normal;background:#15151a;color:var(--teks);
+  border:1px solid var(--garis);border-radius:12px;padding:13px 15px;
+  font-size:12.5px;line-height:1.6;box-shadow:0 20px 50px -18px #000}
+[popover].ket b{color:var(--merah)}
+[popover].ket::backdrop{background:rgba(0,0,0,.45)}
+</style>
+</head>
+<body>
+<canvas id="latar" aria-hidden="true"></canvas>
+<div class="bungkus">
+  <header><h1>DRU <span>Analyst</span></h1><span class="jejak" id="jejak"></span></header>
+  <div class="rak" id="rak"></div>
+  <div id="isi"></div>
+</div>
+
+<script src="data/dataset.js"></script>
+<script>
+let D = null, CALLS = [], INVEST = [];
+
+const N = (v,d=2)=> v==null||isNaN(v) ? "–" : v.toFixed(d);
+const P = (v,d=1)=> v==null||isNaN(v) ? "–" : (v>=0?"+":"")+v.toFixed(d)+"%";
+const KELAS = v => v==null?"":v>=0?"naik":"turun";
+
+// Satu tempat keputusan "ini menang?" supaya tabel, win rate dan kurva ekuitas
+// tidak bisa berbeda pendapat.
+// Sumber hasil bisa ditukar. "klaim" memakai apa yang analis umumkan;
+// "harga" memakai level tertinggi yang benar-benar disentuh harga menurut
+// riwayat harian. Keduanya disimpan di dataset, jadi menukarnya tidak
+// memerlukan penarikan ulang apa pun.
+// SATU aturan hasil, dipakai seluruh dashboard: level yang benar-benar
+// disentuh harga menurut lilin harian. `status` di dataset SUDAH berisi hasil
+// itu; `klaim` hanya ada kalau pengumuman analis dulu berbeda, dan dipakai
+// sebagai keterangan, bukan sebagai angka tandingan.
+const ST  = c => c.status;
+const PCT = c => c.persen;
+
+// "tak-terisi" = harga tidak pernah turun ke zona entry, jadi posisinya tidak
+// pernah ada. Menghitungnya menang maupun kalah sama-sama memalsukan rekaman.
+// BEP dan Closed ikut terhitung tertutup - posisinya memang selesai - tetapi
+// bukan kemenangan. Memasukkannya ke penyebut dan bukan ke pembilang itulah
+// yang membuat win rate tetap jujur saat analis keluar lebih awal.
+const tutup  = c => ST(c) !== "ongoing" && ST(c) !== "tak-terisi";
+const menang = c => ST(c).startsWith("TP");
+
+// Tiap segmen punya sepasang warna. Dipakai untuk folder DAN untuk mewarnai
+// ulang seluruh halaman lewat --a1/--a2, jadi rona halaman selalu memberi tahu
+// sedang melihat siapa tanpa perlu membaca judulnya.
+const TEMA = {
+  Tyler:  ["#ffd60a","#f59e0b"],
+  Iron:   ["#28e07a","#07a87a"],
+  Omni:   ["#ff8a3d","#ff2d78"],
+  Oracle: ["#a78bfa","#6366f1"],
+  Invest: ["#38bdf8","#2563eb"],
+};
+const ANALIS = ["Tyler","Iron","Omni","Oracle"];
+
+const rerata = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : null;
+const tengah = a => a.length ? [...a].sort((x,y)=>x-y)[a.length>>1] : null;
+
+function statistik(cs){
+  const t = cs.filter(tutup), m = t.filter(menang);
+  const pct = t.map(PCT).filter(v=>v!=null);
+  // Menang dan rugi dipisah karena sebarannya memang tidak simetris: TP
+  // dibiarkan jalan, SL memotong. Win rate sendirian menyembunyikan itu -
+  // 31% dengan payoff 2.8x masih menguntungkan, 60% dengan payoff 0.3x tidak.
+  const win = t.filter(menang).map(PCT).filter(v=>v!=null);
+  const rugi = t.filter(c=>ST(c)==="SL").map(PCT).filter(v=>v!=null);
+  const jmlRugi = rugi.reduce((a,b)=>a+b,0);
+  const aw = rerata(win), al = rerata(rugi);
+  return {
+    total:cs.length, tutup:t.length, menang:m.length,
+    ongoing:cs.length-t.length,
+    win: t.length ? m.length/t.length*100 : null,
+    rata: rerata(pct),
+    total_gain: pct.reduce((a,b)=>a+b,0),
+    avgWin: aw, avgRugi: al,
+    payoff: (aw!=null && al) ? aw/Math.abs(al) : null,
+    // Profit factor: total persen menang dibagi total persen rugi. Di atas 1
+    // berarti untung; angkanya tidak terpengaruh berapa sering menang.
+    pf: jmlRugi ? win.reduce((a,b)=>a+b,0)/Math.abs(jmlRugi) : null,
+    rugiTengah: tengah(rugi), rugiTerburuk: rugi.length ? Math.min(...rugi) : null,
+    // Nilai awal reduce adalah null, jadi PCT() tidak boleh dipanggil atasnya.
+    terbaik: t.reduce((a,c)=>(PCT(c)??-1e9) > (a?PCT(a)??-1e9:-1e9) ? c : a, null),
+    dari: cs.length? cs[0].tanggal : "–", sampai: cs.length? cs[cs.length-1].tanggal : "–",
+  };
+}
+
+let dipilih = "Tyler", saringan = "semua";
+
+function pasangTema(nama){
+  const [c1,c2] = TEMA[nama] || TEMA.Tyler;
+  document.documentElement.style.setProperty("--a1", c1);
+  document.documentElement.style.setProperty("--a2", c2);
+}
+
+const AVATAR = ()=> (D && D.avatar) || {};
+const kecil = ()=> matchMedia("(max-width: 700px)").matches;
+
+function warnai(el, nama){
+  const [c1,c2] = TEMA[nama] || TEMA.Tyler;
+  el.style.setProperty("--c1", c1);
+  el.style.setProperty("--c2", c2);
+}
+
+function folder({nama, angka, ket, arsip}){
+  const b = document.createElement("button");
+  b.className = "folder" + (arsip ? " arsip" : "");
+  b.setAttribute("aria-pressed", nama===dipilih);
+  warnai(b, nama);
+  const av = AVATAR()[nama];
+  b.innerHTML = `<span class="nm">${av?`<img src="${av}" alt="">`:`<i></i>`}${nama}</span>
+    <span class="ang">${angka}</span><span class="ket">${ket}</span>`;
+  b.onclick = ()=>{ dipilih = nama; saringan = "semua"; gambarRak(); gambarIsi(); };
+  return b;
+}
+
+// Tombol kecil di rel mobile. Analis memakai avatarnya; Invest memakai kotak
+// dan teks, karena bentuk yang sama akan menyiratkan metrik yang sama.
+function pil2(nama, bentuk){
+  const b = document.createElement("button");
+  b.className = "pil2 " + bentuk;
+  b.setAttribute("aria-label", nama);
+  b.setAttribute("title", nama);
+  warnai(b, nama);
+  const av = AVATAR()[nama];
+  b.innerHTML = (bentuk === "bulat" && av)
+    ? `<img src="${av}" alt="${nama}">`
+    : `<b>${nama === "Invest" ? "INV" : nama.slice(0,3).toUpperCase()}</b>`;
+  b.onclick = ()=>{ dipilih = nama; saringan = "semua"; gambarRak(); gambarIsi(); };
+  return b;
+}
+
+function kartuSegmen(nm){
+  if(nm === "Invest"){
+    const ada = INVEST.filter(x=>x.persen!=null);
+    const tot = ada.reduce((a,b)=>a+b.persen,0);
+    return folder({ nama:"Invest", angka:P(tot,0),
+                    ket:`akumulasi · ${ada.filter(x=>x.persen>0).length}/${ada.length} di atas entry` });
+  }
+  const cs = CALLS.filter(c=>c.analis===nm), s = statistik(cs);
+  // Angka utama folder = akumulasi gain, bukan win rate. Win rate turun jadi
+  // keterangan: ia tidak membedakan menang +226% dari menang +3%.
+  return folder({ nama:nm, angka:P(s.total_gain,0),
+    ket:`akumulasi · ${s.win==null?"–":s.win.toFixed(0)+"% win"} · ${s.total} call`,
+    arsip: !cs.some(c=>c.asal==="discord") });
+}
+
+function gambarRak(){
+  const r = document.getElementById("rak");
+  r.innerHTML = "";
+  const segmen = [...ANALIS, "Invest"];
+
+  if(kecil()){
+    // Hanya segmen aktif yang jadi folder; sisanya menyusut ke rel kanan.
+    r.appendChild(kartuSegmen(dipilih));
+    const rel = document.createElement("div");
+    rel.className = "rel";
+    segmen.filter(nm=>nm!==dipilih)
+          .forEach(nm=> rel.appendChild(pil2(nm, nm==="Invest" ? "kotak" : "bulat")));
+    r.appendChild(rel);
+    return;
+  }
+
+  ANALIS.forEach(nm=> r.appendChild(kartuSegmen(nm)));
+  // Invest dipisah garis: metriknya BUKAN win rate dan tidak boleh dibaca
+  // sebaris dengan empat folder di kirinya.
+  const p = document.createElement("div"); p.className = "pisah"; r.appendChild(p);
+  r.appendChild(kartuSegmen("Invest"));
+}
+
+// Bentuk raknya berubah di ambang 700px, jadi harus digambar ulang saat lebar
+// melewati ambang itu - bukan hanya saat halaman dimuat.
+matchMedia("(max-width: 700px)").addEventListener("change", ()=>{
+  if(CALLS.length) gambarRak();
+});
+
+/* ---------- kurva ekuitas (SVG inline, tanpa pustaka chart) ----------
+   preserveAspectRatio="none" membuat pemetaan viewBox -> piksel jadi linear di
+   kedua sumbu, dan itu yang membuat tooltip-nya sesederhana ini: posisi kursor
+   dibagi lebar kotak langsung jadi indeks titik. */
+let kurvaData = null;
+
+function kurva(cs){
+  const t = cs.filter(c=>tutup(c) && PCT(c)!=null);
+  kurvaData = null;
+  if(t.length < 2) return `<p class="sub">Belum cukup data.</p>`;
+  let k=0; const titik = t.map(c=>(k+=PCT(c)));
+  const W=520,H=150,pad=4, mx=Math.max(...titik,0), mn=Math.min(...titik,0);
+  const sx=i=>pad+i*(W-pad*2)/(titik.length-1);
+  const sy=v=>H-pad-((v-mn)/((mx-mn)||1))*(H-pad*2);
+  const d = titik.map((v,i)=>(i?"L":"M")+sx(i).toFixed(1)+" "+sy(v).toFixed(1)).join(" ");
+  const nol = sy(0);
+  kurvaData = {
+    titik, W, H,
+    x: titik.map((_,i)=>sx(i)/W*100),
+    y: titik.map(v=>sy(v)/H*100),
+    call: t.map(c=>({tk:c.ticker, tgl:c.tanggal, pct:PCT(c), st:ST(c)})),
+  };
+  return `<div class="kurvabox" id="kurvabox">
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:150px;display:block">
+      <defs>
+        <linearGradient id="gr" x1="0" x2="1"><stop offset="0" stop-color="var(--a1)"/>
+          <stop offset="1" stop-color="var(--a2)"/></linearGradient>
+        <linearGradient id="gf" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stop-color="var(--a1)" stop-opacity=".30"/>
+          <stop offset="1" stop-color="var(--a1)" stop-opacity="0"/></linearGradient>
+      </defs>
+      <line x1="0" y1="${nol}" x2="${W}" y2="${nol}" stroke="#34343c" stroke-dasharray="3 4"/>
+      <path d="${d} L ${W-pad} ${nol} L ${pad} ${nol} Z" fill="url(#gf)"/>
+      <path d="${d}" fill="none" stroke="url(#gr)" stroke-width="2.2"
+            stroke-linejoin="round" stroke-linecap="round"/></svg>
+    <div class="garis" id="kgaris"></div>
+    <div class="dot" id="kdot"></div>
+    <div class="tip" id="ktip"></div>
+  </div>
+  <div class="sub">Kumulatif ${P(titik[titik.length-1])} dari ${t.length} call tertutup,
+    berurutan waktu. Bukan return portofolio; tiap call berbobot sama.
+    Arahkan kursor ke grafik untuk melihat angka di tiap titik.</div>`;
+}
+
+function pasangKurva(){
+  const box = document.getElementById("kurvabox");
+  if(!box || !kurvaData) return;
+  const garis = document.getElementById("kgaris");
+  const dot   = document.getElementById("kdot");
+  const tip   = document.getElementById("ktip");
+
+  const gerak = (ev)=>{
+    const r = box.getBoundingClientRect();
+    const px = ((ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left) / r.width;
+    // Titik terdekat, bukan pembulatan ke bawah: di dekat ujung kanan
+    // pembulatan ke bawah membuat titik terakhir mustahil tersorot.
+    let i = Math.round(px * (kurvaData.titik.length - 1));
+    i = Math.max(0, Math.min(kurvaData.titik.length - 1, i));
+    const c = kurvaData.call[i];
+    garis.style.left = kurvaData.x[i] + "%";
+    dot.style.left   = kurvaData.x[i] + "%";
+    dot.style.top    = kurvaData.y[i] + "%";
+    tip.style.left   = kurvaData.x[i] + "%";
+    tip.style.top    = kurvaData.y[i] + "%";
+    tip.innerHTML = `<b class="${KELAS(kurvaData.titik[i])}">${P(kurvaData.titik[i])}</b>
+      <span class="sub">$${c.tk} \u00b7 ${c.tgl} \u00b7 ${c.st} ${P(c.pct)}</span>`;
+  };
+  const tampak = (on)=> [garis,dot,tip].forEach(el=> el.style.opacity = on ? 1 : 0);
+  box.addEventListener("mousemove", (e)=>{ gerak(e); tampak(true); });
+  box.addEventListener("touchmove", (e)=>{ gerak(e); tampak(true); }, {passive:true});
+  box.addEventListener("mouseleave", ()=> tampak(false));
+  box.addEventListener("touchend", ()=> tampak(false));
+}
+
+// Panel lipat bawaan browser. <details>/<summary> sudah membawa keyboard,
+// pembaca layar, dan status buka-tutupnya sendiri; menulis ulang itu dengan
+// div + onclick berarti membangun ulang semuanya dan melupakan separuhnya.
+function lipat(judul, ringkas, isi, lebar="k6"){
+  return `<details class="w lipat ${lebar}">
+    <summary><span class="jd">${judul}</span><span class="rk">${ringkas}</span></summary>
+    <div class="isi-lipat">${isi}</div></details>`;
+}
+
+function batang(pasangan, total){
+  return pasangan.map(([k,v,rugi])=>
+    `<div class="bar"><b>${k}</b><div class="isi"><i class="${rugi?"rugi":""}"
+       style="width:${total?v/total*100:0}%"></i></div><u>${v}</u></div>`).join("");
+}
+
+/* ---------- donut ---------------------------------------------------------
+   Satu lingkaran SVG per irisan, digeser lewat stroke-dasharray. Tidak perlu
+   pustaka chart dan tidak perlu menghitung path busur: keliling lingkaran
+   dibagi proporsi, sisanya jadi celah. */
+let donatNo = 0;
+function donat(judul, data, warna, tengahAngka, tengahLabel){
+  const total = data.reduce((a,b)=>a+b[1],0) || 1;
+  const R = 54, K = 2*Math.PI*R;
+  let jalan = 0;
+  const id = "dn" + (++donatNo);
+  const irisan = data.map(([nama,nilai],i)=>{
+    const panjang = nilai/total*K;
+    const el = `<circle r="${R}" cx="66" cy="66" stroke="${warna[i]}"
+      stroke-dasharray="${panjang.toFixed(2)} ${(K-panjang).toFixed(2)}"
+      stroke-dashoffset="${(-jalan).toFixed(2)}" data-i="${i}"></circle>`;
+    jalan += panjang;
+    return el;
+  }).join("");
+
+  const chip = ([nama,nilai],i)=>
+    `<button data-d="${id}" data-i="${i}">
+       <i style="background:${warna[i]}"></i>${nama}
+       <u>${nilai}</u></button>`;
+  // Dibelah di tengah, bukan selang-seling: urutan irisan donut searah jarum
+  // jam, jadi membelahnya berurutan membuat keping kiri dan kanan tetap
+  // mengikuti arah yang sama.
+  const belah = Math.ceil(data.length/2);
+  const kiri  = data.slice(0, belah).map(chip).join("");
+  const kanan = data.slice(belah).map(chip).join("");
+
+  return `<section><h4>${judul}</h4><div class="donat-bungkus">
+    <div class="keping kiri">${kiri}</div>
+    <div class="donat" id="${id}"><svg viewBox="0 0 132 132">
+      <circle r="${R}" cx="66" cy="66" stroke="#23232a"></circle>${irisan}</svg>
+      <div class="tengah"><div><b>${tengahAngka}</b><span>${tengahLabel}</span></div></div>
+    </div>
+    <div class="keping kanan">${kanan}</div></div></section>`;
+}
+
+// Menyorot satu irisan saat legendanya disentuh. Dipasang sekali per render,
+// setelah HTML-nya masuk DOM.
+function pasangDonat(){
+  document.querySelectorAll(".keping button").forEach(b=>{
+    const lingkaran = ()=> document.querySelectorAll(`#${b.dataset.d} circle[data-i]`);
+    const sorot = (on)=> lingkaran().forEach(c=>{
+      if(c.dataset.i === b.dataset.i) c.classList.toggle("sorot", on);
+      else c.style.opacity = on ? .33 : 1;
+    });
+    b.onmouseenter = ()=> sorot(true);
+    b.onmouseleave = ()=> sorot(false);
+    b.onfocus = ()=> sorot(true);
+    b.onblur = ()=> sorot(false);
+  });
+}
+
+/* ---------- panel kanan: kurva ekuitas <-> chart TradingView --------------
+   Skrip widget TradingView dimuat SAAT DIBUTUHKAN saja, bukan di muka.
+   Selama tidak ada ticker yang dipencet, halaman ini tetap tanpa subresource
+   dan tetap jalan tanpa internet - itu janji berkas mandirinya. Begitu chart
+   diminta, barulah satu skrip eksternal ditarik. */
+function bursaDari(tk){
+  return (D && D.bursa && D.bursa[tk]) ? `${D.bursa[tk]}:${tk}` : tk;
+}
+
+function tampilChart(tk){
+  const panel = document.getElementById("panel");
+  if(!panel) return;
+  panel.innerHTML =
+    `<h3>Chart <span>${tk} &middot; <button class="tautan" id="kembaliKurva">kembali ke kurva</button></span></h3>
+     <div id="tvbox" style="height:300px"></div>`;
+  document.getElementById("kembaliKurva").onclick = tampilKurva;
+
+  const box = document.getElementById("tvbox");
+  const bungkus = document.createElement("div");
+  bungkus.className = "tradingview-widget-container";
+  bungkus.style.height = "100%";
+  const dalam = document.createElement("div");
+  dalam.className = "tradingview-widget-container__widget";
+  dalam.style.height = "100%";
+  bungkus.appendChild(dalam);
+  box.appendChild(bungkus);
+
+  // innerHTML tidak pernah mengeksekusi <script>. Elemennya harus dibuat lewat
+  // createElement supaya benar-benar jalan.
+  const sc = document.createElement("script");
+  sc.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+  sc.async = true;
+  sc.innerHTML = JSON.stringify({
+    symbol: bursaDari(tk), interval: "D", timezone: "Asia/Jakarta",
+    theme: "dark", style: "1", locale: "id", autosize: true,
+    hide_side_toolbar: true, allow_symbol_change: false, save_image: false,
+    backgroundColor: "rgba(18,18,22,1)",
+  });
+  sc.onerror = ()=>{
+    box.innerHTML = `<p class="sub">Chart gagal dimuat. Panel ini menarik skrip
+      dari s3.tradingview.com, jadi butuh internet dan jaringan yang tidak
+      memblokirnya.</p>`;
+  };
+  bungkus.appendChild(sc);
+}
+
+function tampilKurva(){
+  const panel = document.getElementById("panel");
+  if(!panel) return;
+  if(dipilih === "Invest"){
+    // Invest tidak punya kurva ekuitas (tanpa TP/SL tidak ada hasil untuk
+    // diakumulasi), jadi yang dipulihkan adalah ajakan memilih ticker.
+    panel.innerHTML = `<h3>Chart<span>pencet ticker mana pun di bawah</span></h3>
+      <p class="sub">Panel ini menampilkan chart TradingView untuk ticker yang dipilih.</p>`;
+    return;
+  }
+  const cs = CALLS.filter(c=>c.analis===dipilih);
+  panel.innerHTML = `<h3>Kurva hasil kumulatif<span>${dipilih}</span></h3>${kurva(cs)}`;
+  pasangKurva();                      // elemen baru, listener lama ikut hilang
+}
+
+/* ---------- tampilan Invest ---------- */
+function isiInvest(){
+  const ada = INVEST.filter(x=>x.persen!=null);
+  const naik = ada.filter(x=>x.persen>0).length;
+  const rata = ada.length ? ada.reduce((a,b)=>a+b.persen,0)/ada.length : null;
+  const med = tengah(ada.map(x=>x.persen));
+  const umurTengah = tengah(ada.map(x=>x.umurHari||0));
+  // Disetahunkan DARI median itu sendiri, bukan median dari tiap pos yang
+  // disetahunkan. Dua-duanya sah secara statistik, tapi yang kedua memberi
+  // +16%/tahun di sebelah "+14.5% selama 555 hari", dan pembaca yang membagi
+  // sendiri akan menyimpulkan salah satunya bohong.
+  const tahunan = (med==null||!umurTengah) ? null
+    : (Math.pow(1 + med/100, 365/Math.max(umurTengah,30)) - 1) * 100;
+  const urut = [...INVEST].sort((a,b)=>(b.persen??-1e9)-(a.persen??-1e9));
+  const penulis = {};
+  INVEST.forEach(x=>penulis[x.penulis]=(penulis[x.penulis]||0)+1);
+
+  return `<div class="grid">
+    <div class="w kecil k3"><h3>Akumulasi gain</h3>
+      <div class="besar aksen">${P(ada.reduce((a,b)=>a+b.persen,0),0)}</div>
+      <div class="sub">${INVEST.length} outlook, bobot sama; posisi masih dipegang</div></div>
+    <div class="w kecil k3"><h3>Di atas entry</h3>
+      <div class="besar">${naik}<span style="font-size:17px;color:var(--redup)">/${ada.length}</span></div>
+      <div class="sub">harga kini di atas titik tengah entry</div></div>
+    <div class="w kecil k3"><h3>Median sejak terbit</h3>
+      <div class="besar ${KELAS(med)}">${P(med)}</div>
+      <div class="sub">setara ${P(tahunan)}/tahun, ditahan ${umurTengah} hari</div></div>
+    <div class="w kecil k3"><h3>Rata-rata</h3>
+      <div class="besar ${KELAS(rata)}">${P(rata)}</div>
+      <div class="sub">ditarik satu outlier; median lebih mewakili</div></div>
+
+    <div class="w k12" id="panel"><h3>Chart<span>pencet ticker mana pun di bawah</span></h3>
+      <p class="sub">Panel ini menampilkan chart TradingView untuk ticker yang dipilih.</p></div>
+
+    <div class="w k12"><h3>Outlook Invest
+      <span class="sub">tanpa TP dan tanpa SL, diukur dari titik tengah entry ke harga sekarang</span></h3>
+      <div class="inv">${urut.map(x=>`
+        <div class="ikartu">
+          <div class="atas"><button class="tk" data-tk="${x.ticker}">$${x.ticker}</button>
+            <span class="ret ${KELAS(x.persen)}">${P(x.persen)}</span></div>
+          <div class="meta">${x.tanggal} \u00b7 ${x.penulis}${x.sektor?" \u00b7 "+x.sektor:""}</div>
+          <div class="meta">entry ${N(x.entry)}\u2013${N(x.entryAtas)}
+            ${x.hargaKini!=null?`\u00b7 kini <b style="color:var(--teks)">${N(x.hargaKini)}</b>`:""}
+            ${x.kapitalisasi?"\u00b7 "+x.kapitalisasi:""}</div>
+          ${x.ringkas?`<p>${x.ringkas.slice(0,190)}\u2026</p>`:""}
+          <a class="sumber disc" style="margin:9px 0 0;display:inline-block"
+             href="${x.sumber}" target="_blank" rel="noopener">buka di discord</a>
+        </div>`).join("")}</div></div>
+  </div>`;
+}
+
+function isiAnalis(){
+  const semua = CALLS.filter(c=>c.analis===dipilih);
+  const s = statistik(semua);
+  const hit = j => semua.filter(c=>ST(c)===j).length;
+  const tf = {};
+  // String() wajib: kolom Timeframe di jurnal Excel tidak selalu teks - ada sel
+  // yang terbaca sebagai angka, dan .trim() pada itu melempar. Yang murni angka
+  // juga dibuang: "0.040339" adalah sel salah baca, bukan nama timeframe.
+  semua.forEach(c=>{
+    let k = String(c.timeframe ?? "").trim();
+    if(!k || !isNaN(Number(k))) k = "\u2013";
+    tf[k]=(tf[k]||0)+1;
+  });
+  const disc = semua.filter(c=>c.asal==="discord").length;
+
+  let baris = semua.slice().reverse();
+  if(saringan==="menang") baris = baris.filter(menang);
+  else if(saringan==="rugi") baris = baris.filter(c=>ST(c)==="SL");
+  else if(saringan==="jalan") baris = baris.filter(c=>!tutup(c));
+
+  // Lebar bar payoff dinormalkan ke sisi yang lebih besar, jadi perbandingan
+  // menang-vs-rugi terbaca sebagai panjang, bukan angka yang harus dibagi
+  // sendiri di kepala.
+  const skala = Math.max(s.avgWin||0, Math.abs(s.avgRugi||0)) || 1;
+  const totalTP = hit("TP1")+hit("TP2")+hit("TP3")+hit("TP4");
+  const tfUrut = Object.entries(tf).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  return `<div class="grid">
+    <div class="w kecil k3"><h3>Akumulasi gain</h3>
+      <div class="besar aksen">${P(s.total_gain,0)}</div>
+      <div class="sub">${s.tutup} call tertutup, bobot sama</div></div>
+    <div class="w kecil k3"><h3>Profit factor</h3>
+      <div class="besar ${s.pf>1?"naik":"turun"}">${s.pf==null?"\u2013":s.pf.toFixed(2)}</div>
+      <div class="sub">di atas 1,00 berarti untung</div></div>
+    <div class="w kecil k3"><h3>Rata-rata per call</h3>
+      <div class="besar ${KELAS(s.rata)}">${P(s.rata)}</div>
+      <div class="sub">${s.win==null?"\u2013":s.win.toFixed(0)+"%"} win \u00b7 ${s.menang}/${s.tutup}</div></div>
+    <div class="w kecil k3"><h3>Call terbaik</h3>
+      <div class="besar naik">${P(s.terbaik?.persen)}</div>
+      <div class="sub">$${s.terbaik?.ticker||"\u2013"} \u00b7 ${s.ongoing} berjalan</div></div>
+
+    <div class="w k4"><h3>Menang vs rugi<span>payoff ${s.payoff==null?"\u2013":s.payoff.toFixed(1)+"\u00d7"}</span></h3>
+      <div class="bar"><b style="width:52px">menang</b>
+        <div class="isi"><i style="width:${(s.avgWin||0)/skala*100}%"></i></div>
+        <u style="width:52px" class="naik">${P(s.avgWin)}</u></div>
+      <div class="bar"><b style="width:52px">rugi</b>
+        <div class="isi"><i class="rugi" style="width:${Math.abs(s.avgRugi||0)/skala*100}%"></i></div>
+        <u style="width:52px" class="turun">${P(s.avgRugi)}</u></div>
+      <details class="lagi"><summary>selengkapnya</summary>
+        <div class="sub">Tiap kemenangan rata-rata
+        ${s.payoff==null?"\u2013":s.payoff.toFixed(1)+"\u00d7"} lebih besar dari tiap kerugian.
+        Rugi median ${P(s.rugiTengah)}, terburuk ${P(s.rugiTerburuk)}; stoploss
+        tidak menolong saat harga gap.</div></details></div>
+
+    <div class="w k8" id="panel"><h3>Kurva hasil kumulatif<span>${dipilih}</span></h3>${kurva(semua)}</div>
+
+    ${lipat("Rincian call",
+      `TP ${totalTP} \u00b7 SL ${hit("SL")} \u00b7 jalan ${s.ongoing} \u00b7 ${tfUrut.length} timeframe`,
+      `<div class="duo">` +
+        donat("Distribusi hasil",
+          [["TP1",hit("TP1")],["TP2",hit("TP2")],["TP3",hit("TP3")],["TP4",hit("TP4")],
+           ["SL",hit("SL")],["jalan",s.ongoing]],
+          ["var(--a1)","var(--a2)","#c98a12","#9a6a10","#ff4d4f","#3a3a44"],
+          `${s.win==null?"\u2013":s.win.toFixed(0)+"%"}`, "win rate") +
+        donat("Timeframe", tfUrut,
+          ["var(--a1)","var(--a2)","#c98a12","#8a6520","#4a4a55"],
+          `${tfUrut.length}`, "jenis") +
+      `</div>`, "k12")}
+
+    <div class="w k12"><h3>Riwayat call
+      <span class="sub">${disc} dari Discord \u00b7 ${s.total-disc} dari jurnal Excel</span></h3>
+      <div class="saring">${[["semua","Semua"],["menang","Kena TP"],["rugi","Kena SL"],["jalan","Berjalan"]]
+        .map(([k,l])=>`<button data-s="${k}" aria-pressed="${saringan===k}">${l}</button>`).join("")}
+</div>
+      <div class="gulung"><table><thead><tr>
+        <th>Ticker</th><th>Tanggal</th><th>Entry</th><th>SL</th><th>Status</th><th>Hasil</th>
+      </tr></thead><tbody>${baris.map((c,i)=>`<tr class="klik" data-tk="${c.ticker}">
+        <td><button class="tk" data-tk="${c.ticker}">${c.ticker}</button>${c.sumber
+          ?`<a href="${c.sumber}" target="_blank" rel="noopener" class="sumber disc">discord</a>`
+          :`<span class="sumber">excel</span>`}</td>
+        <td>${c.tanggal}</td>
+        <td>${N(c.entry)}${c.entryAtas?"\u2013"+N(c.entryAtas):""}</td>
+        <td>${N(c.sl)}</td>
+        <td><span class="lencana ${ST(c)==="SL"?"l-sl":(ST(c)==="ongoing"||ST(c)==="tak-terisi")?"l-on":(ST(c)==="BEP"||ST(c)==="Closed")?"l-bep":"l-tp"}"${
+          c.vStatus && c.vStatus!==ST(c)?` title="Analis mencatat ${ST(c)}; riwayat harga menunjukkan ${c.vStatus}"`:""
+        }>${ST(c)}</span>${c.cacat?`
+          <button class="tanya" popovertarget="ket${i}" aria-label="kenapa ditandai">?</button>
+          <div popover id="ket${i}" class="ket"><b>Angka call ini tidak masuk akal.</b><br>
+            ${c.cacat.replace("<="," di bawah ").replace(">="," di atas ")} — mustahil untuk
+            posisi beli, jadi hampir pasti salah tulis atau salah baca. Riwayat harganya tidak
+            diverifikasi untuk baris ini; statusnya memakai catatan analis apa adanya.
+            Betulkan lewat koreksi.html.</div>`:""}</td>
+        <td class="${KELAS(PCT(c))}">${P(PCT(c))}${
+          c.puncak!=null ? `<span class="puncak" title="Puncak harga setelah call">\u25b2${P(c.puncak,0)}</span>` : ""}</td></tr>`).join("")}
+      </tbody></table></div></div>
+  </div>`;
+}
+
+function gambarIsi(){
+  pasangTema(dipilih);
+  document.getElementById("isi").innerHTML =
+    dipilih === "Invest" ? isiInvest() : isiAnalis();
+  document.querySelectorAll(".saring button").forEach(b=>
+    b.onclick = ()=>{ saringan = b.dataset.s; gambarIsi(); });
+  // Satu listener per tombol ticker, dipasang ulang tiap render. Dengan ~400
+  // baris itu masih murah, dan delegasi event akan menambah satu lapisan yang
+  // tidak dibayar apa pun di sini.
+  document.querySelectorAll("button.tk").forEach(b=>
+    b.onclick = (e)=>{ e.stopPropagation(); tampilChart(b.dataset.tk); });
+  // Seluruh baris membuka chart, bukan cuma tickernya. Tautan discord di
+  // dalamnya harus menghentikan perambatan, kalau tidak satu klik akan
+  // membuka tab Discord DAN menukar panel sekaligus.
+  document.querySelectorAll("tr.klik").forEach(tr=>{
+    // Klik pada tombol tanya tidak boleh ikut menukar panel chart.
+    tr.onclick = (e)=>{ if(e.target.closest('.tanya,[popover]')) return;
+                        tampilChart(tr.dataset.tk); };
+    const a = tr.querySelector("a.sumber");
+    if(a) a.onclick = (e)=> e.stopPropagation();
+  });
+  pasangDonat();
+  pasangKurva();
+}
+
+/* ---------- latar: ticker melaju dalam perspektif -------------------------
+   SENGAJA BUKAN shader. Versi WebGL dari efek ini me-raymarch 50 iterasi per
+   piksel - di layar 1440p itu sekitar 150 juta iterasi TIAP FRAME, dan GPU
+   menyala selama dashboard dibuka. Perspektifnya sendiri cuma satu pembagian:
+   layar = tengah + (x,y) / z. Itu yang dipakai di sini.
+
+   Anggaran: 70 item, canvas 2D, satu rAF. Tiga rem yang wajib ada karena ini
+   dekorasi, bukan isi:
+     - prefers-reduced-motion  -> satu frame diam, rAF tidak pernah jalan
+     - tab disembunyikan       -> rAF dihentikan, bukan sekadar tidak terlihat
+     - devicePixelRatio dikunci 1 -> di layar retina ini berarti seperempat
+       piksel yang digambar, dan teks sebesar itu toh sudah kabur
+*/
+function latarJalan(){
+  const cv = document.getElementById("latar");
+  if(!cv || !cv.getContext) return;
+  const ctx = cv.getContext("2d", { alpha:true });
+  const diam = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const sumber = (CALLS.length ? CALLS : []).filter(c=>c.persen!=null);
+  if(!sumber.length) return;
+  const JML = 70, FOKUS = 430, DEKAT = 70, JAUH = 1100;
+
+  const acak = n => Math.random()*n;
+  const buat = (z) => {
+    const c = sumber[(Math.random()*sumber.length)|0];
+    return { tk:c.ticker, g:(c.persen>=0?"+":"")+c.persen.toFixed(0)+"%",
+             naik:c.persen>=0, x:acak(1700)-850, y:acak(1000)-500,
+             z: z!=null ? z : DEKAT+acak(JAUH-DEKAT) };
+  };
+  let item = Array.from({length:JML}, ()=>buat());
+
+  let W=0, H=0;
+  const ukur = ()=>{
+    W = cv.clientWidth; H = cv.clientHeight;
+    cv.width = W; cv.height = H;            // dpr dikunci 1 - lihat catatan
+  };
+  ukur();
+  addEventListener("resize", ukur, {passive:true});
+
+  const gambar = (dt)=>{
+    ctx.clearRect(0,0,W,H);
+    const cx = W/2, cy = H*0.42;
+    for(const o of item){
+      o.z -= dt*70;
+      if(o.z < DEKAT){ Object.assign(o, buat(JAUH)); }
+      const s = FOKUS/o.z;
+      const x = cx + o.x*s, y = cy + o.y*s;
+      // Keluar bingkai = langsung didaur ulang ke kejauhan, tidak menunggu
+      // sampai z < DEKAT. Tanpa ini sebagian besar item menghabiskan hidupnya
+      // melayang di luar layar dan dari 70 cuma belasan yang pernah terlihat.
+      if(x < -170 || x > W+170 || y < -50 || y > H+50){
+        if(s > 1) Object.assign(o, buat(JAUH));
+        continue;
+      }
+      // Pudar di dua ujung: yang jauh baru muncul, yang dekat keluar layar.
+      const a = Math.min(1,(JAUH-o.z)/420) * Math.min(1,(o.z-DEKAT)/260);
+      if(a <= 0.01) continue;
+      const ukuranFont = Math.max(7, Math.min(34, 13*s));
+      ctx.font = `700 ${ukuranFont.toFixed(1)}px ui-sans-serif,system-ui,sans-serif`;
+      ctx.fillStyle = o.naik ? `rgba(46,204,113,${a*0.75})` : `rgba(255,77,79,${a*0.7})`;
+      ctx.fillText(o.tk, x, y);
+      ctx.fillStyle = `rgba(244,244,245,${a*0.33})`;
+      ctx.fillText(o.g, x + ctx.measureText(o.tk).width + 6, y);
+    }
+  };
+
+  if(diam){ gambar(0); return; }            // satu frame, lalu berhenti
+
+  let raf = 0, lalu = performance.now();
+  const putar = (now)=>{
+    const dt = Math.min(0.05, (now-lalu)/1000); lalu = now;
+    gambar(dt);
+    raf = requestAnimationFrame(putar);
+  };
+  const nyala = ()=>{ if(!raf){ lalu = performance.now(); raf = requestAnimationFrame(putar); } };
+  const mati  = ()=>{ cancelAnimationFrame(raf); raf = 0; };
+  document.addEventListener("visibilitychange", ()=> document.hidden ? mati() : nyala());
+  nyala();
+}
+
+/* Terapkan koreksi yang disimpan lewat halaman /koreksi.
+ *
+ * Disalin dari aturan di pipa/gabung.py dengan sengaja: keduanya membaca
+ * berkas yang sama dan harus sampai pada angka yang sama. Yang di sini berlaku
+ * seketika untuk pembaca; yang di Python berlaku saat dataset dibangun ulang.
+ * Kalau keduanya menyimpang, yang terlihat adalah angka berubah sendiri
+ * setelah rebuild - jadi perubahan di satu sisi wajib diikuti sisi lain.
+ */
+function terapkanKoreksi(calls){
+  const K = window.KOREKSI;
+  if(!K || !Object.keys(K).length) return calls;
+
+  const hasil = (b)=>{
+    if(b.status === "BEP") return 0;
+    if(b.status === "Closed") return null;        // hanya dari persen manual
+    if(!b.entry) return null;
+    if(b.status === "SL") return b.sl ? (b.sl - b.entry) / b.entry * 100 : null;
+    if(b.status && b.status.startsWith("TP")){
+      const v = b[b.status.toLowerCase()];
+      return v ? (v - b.entry) / b.entry * 100 : null;
+    }
+    return b.persen ?? null;
+  };
+
+  const keluar = [];
+  for(const c of calls){
+    const k = K[`${c.analis}|${c.ticker}|${c.tanggal}`];
+    if(!k){ keluar.push(c); continue; }
+    if(k.dibatalkan) continue;                    // nisan: barisnya dibuang
+    const b = Object.assign({}, c, {dikoreksi:true});
+    for(const f of ["entry","entryAtas","tp1","tp2","tp3","tp4","sl",
+                    "status","timeframe","catatan"]){
+      if(k[f] != null) b[f] = k[f];
+    }
+    // Persen yang ditulis tangan menang; kalau tidak ada, hitung ulang dari
+    // level - karena levelnya mungkin baru saja diubah.
+    b.persen = (k.persen != null) ? k.persen : hasil(b);
+    keluar.push(b);
+  }
+  return keluar;
+}
+
+function mulai(){
+  try{
+    D = window.DATA;
+    if(!D || !Array.isArray(D.calls) || !D.calls.length)
+      throw new Error("window.DATA kosong atau tidak termuat");
+    CALLS = terapkanKoreksi(D.calls); INVEST = D.invest || [];
+    document.getElementById("jejak").textContent =
+      `${CALLS.length} call · ${INVEST.length} outlook invest · diperbarui `+
+      `${D.diperbarui.replace("T"," ").slice(0,16)} UTC`;
+    gambarRak(); gambarIsi();
+    // Sekali saja. mulai() bisa dipanggil lagi lewat pageshow, dan tanpa
+    // penjaga ini tiap kali kembali ke tab akan menambah satu loop rAF lagi
+    // yang berjalan selamanya di atas yang lama.
+    if(!window.__latar){ window.__latar = true; latarJalan(); }
+  }catch(e){
+    // Halaman kosong tanpa penjelasan adalah kegagalan yang paling mahal:
+    // tidak ada yang tahu harus berbuat apa. Jadi penyebabnya ditulis.
+    const r = document.getElementById("rak");
+    r.innerHTML = ""; r.style.margin = "20px 0";
+    document.getElementById("isi").innerHTML =
+      `<div class="w k12"><h3>Data tidak termuat</h3>
+       <p style="margin-bottom:10px">${e.message}</p>
+       <p class="sub"><b>DRU-dashboard.html</b> membawa datanya di dalam dirinya sendiri dan
+       seharusnya selalu jalan. <b>dashboard.html</b> memuat data terpisah dari
+       <code>data/dataset.js</code>, jadi perlu server:
+       <code>python -m http.server 8777</code>.</p>
+       <p class="sub" style="margin-top:8px">Muat ulang dengan Ctrl+Shift+R. Kalau masih
+       kosong, buka Console browser (F12) dan kirimkan galatnya.</p></div>`;
+  }
+}
+
+mulai();
+// Kembali dari tab lain atau tombol Back kadang memulihkan halaman dari cache
+// dalam keadaan setengah jadi. Menggambar ulang saat halaman ditampilkan lagi
+// jauh lebih murah daripada mencari tahu kapan persisnya itu terjadi.
+window.addEventListener("pageshow", ev=>{ if(ev.persisted || !CALLS.length) mulai(); });
+</script>
+</body>
+</html>

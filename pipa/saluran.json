@@ -1,0 +1,40 @@
+{
+  "guild": "1270940870408929330",
+  "analis": [
+    {
+      "nama": "Tyler",
+      "userId": "368717040648716289",
+      "kanal": "1284623046530830418",
+      "aktif": true,
+      "sejakJurnal": "2024-09-16"
+    },
+    {
+      "nama": "Iron",
+      "userId": "1043819854261661726",
+      "kanal": "1415008562102407308",
+      "aktif": true,
+      "sejakJurnal": "2024-04-24"
+    },
+    {
+      "nama": "Omni",
+      "userId": "351578767237578753",
+      "kanal": "1544163583816892426",
+      "aktif": true,
+      "sejakJurnal": null
+    },
+    {
+      "nama": "Oracle",
+      "userId": "758537889884799009",
+      "kanal": "1272588220814856232",
+      "aktif": false,
+      "sejakJurnal": "2024-04-24",
+      "catatan": "Nonaktif, tapi channelnya masih ada. Riwayat Discord lebih kaya daripada jurnal Excel: ada tautan, gambar, dan pesan keluar manual."
+    }
+  ],
+  "segmen": {
+    "invest": {
+      "kanal": "1311129904678699129",
+      "catatan": "Segmen terpisah, bukan calls trading"
+    }
+  }
+}
