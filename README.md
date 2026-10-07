@@ -106,6 +106,11 @@ hasilnya (`web/dasbor.html`) ikut ter-commit.
    to build the app". Railway sendiri menawarkan tombol **Set root directory**
    di layar kegagalannya.
 
+   Jangan menulis `buildCommand` sendiri. Nixpacks sudah memasang dependensi
+   lalu menjalankan `npm run build`; menambahkan "npm ci && npm run build"
+   membuat `npm ci` jalan dua kali, dan yang kedua gagal `EBUSY` karena
+   mencoba menghapus node_modules yang sebagiannya ter-mount sebagai cache.
+
    Port TIDAK boleh dipaku di `npm start`. Railway menyuntikkan $PORT dan
    healthcheck-nya menunggu di situ; `next start -p 3200` akan lolos build
    lalu gagal deploy karena aplikasinya mendengar di port yang salah.
