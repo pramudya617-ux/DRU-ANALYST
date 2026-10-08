@@ -35,6 +35,7 @@ import datetime
 import json
 import urllib.request
 from pathlib import Path
+from pathlib import Path as pathlib_Path
 
 from cocok_excel import JURNAL, baca_jurnal
 
@@ -165,7 +166,12 @@ def tulis_mandiri(teks):
     # Salinan kedua untuk web app. Next.js hanya boleh membaca berkas DI DALAM
     # folder aplikasinya - di Railway, direktori kerja proses adalah web/, dan
     # "../DRU-dashboard.html" berada di luar konteks build.
-    (AKAR / "web" / "dasbor.html").write_text(
+    # Di server, hasilnya ditulis ke volume supaya selamat dari redeploy.
+    # Di laptop DATA_DIR kosong, jadi jatuh ke akar proyek seperti biasa.
+    import os as _os
+    tujuan = pathlib_Path(_os.environ["DATA_DIR"]) if _os.environ.get("DATA_DIR") else AKAR
+    tujuan.mkdir(parents=True, exist_ok=True)
+    (tujuan / "dasbor.html").write_text(
         sumber.replace(tanda, "<script>window.DATA = %s;</script>" % aman),
         encoding="utf-8")
     (AKAR / "DRU-dashboard.html").write_text(
@@ -179,7 +185,7 @@ def tulis_mandiri(teks):
         ks = kor_src.read_text(encoding="utf-8")
         tanda_k = '<script src="../data/dataset.js"></script>'
         if tanda_k in ks:
-            (AKAR / "web" / "koreksi.html").write_text(
+            (AKAR / "koreksi.html").write_text(
                 ks.replace(tanda_k, "<script>window.DATA = %s;</script>" % aman),
                 encoding="utf-8")
 
@@ -187,7 +193,7 @@ def tulis_mandiri(teks):
     # masih kosong. Setelah ada penulisan pertama dari web, volume yang menang
     # dan berkas ini tidak pernah dilirik lagi.
     fk = AKAR / "data" / "koreksi.json"
-    (AKAR / "web" / "koreksi-benih.json").write_text(
+    (AKAR / "koreksi-benih.json").write_text(
         fk.read_text(encoding="utf-8") if fk.exists() else "{}", encoding="utf-8")
 
     print("-> DRU-dashboard.html (%d KB)" % (len(sumber) + len(aman) >> 10))

@@ -16,9 +16,19 @@ import { bacaKoreksi } from "@/lib/berkas";
  */
 export const dynamic = "force-dynamic";
 
-// Di dalam folder aplikasi, bukan di luarnya: itu satu-satunya tempat yang
-// pasti ikut ter-deploy. pipa/gabung.py yang menulisnya tiap kali dibangun.
-const BERKAS = path.join(process.cwd(), "dasbor.html");
+/* Dua tempat, dengan urutan yang disengaja.
+ *
+ * Penjadwal di server menulis hasil terbarunya ke DATA_DIR (volume), jadi itu
+ * yang dibaca lebih dulu. Kalau belum ada - deploy pertama, atau volume baru
+ * dipasang - dipakai salinan yang ikut ter-commit, supaya halamannya tetap
+ * tampil alih-alih 503 sampai penarikan pertama selesai. */
+function berkasDasbor() {
+  const d = process.env.DATA_DIR;
+  const kandidat = [];
+  if (d) kandidat.push(path.join(d, "dasbor.html"));
+  kandidat.push(path.join(process.cwd(), "dasbor.html"));
+  return kandidat;
+}
 
 function tombolKeluar(nama) {
   /* Disuntik di sisi server, bukan ditulis di dashboard-nya.
@@ -45,9 +55,10 @@ export async function GET() {
   }
 
   let html;
-  try {
-    html = await readFile(BERKAS, "utf8");
-  } catch {
+  for (const f of berkasDasbor()) {
+    try { html = await readFile(f, "utf8"); break; } catch {}
+  }
+  if (html === undefined) {
     return new Response(
       "dasbor.html belum dibangun. Jalankan: python perbarui.py",
       { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } });

@@ -1,0 +1,23 @@
+# Railway memakai Nixpacks, dan untuk proyek ini ia hanya akan mengenali Node.
+# Padahal seluruh pipeline data ditulis dengan Python, jadi python311 HARUS
+# diminta eksplisit - tanpa baris ini penjadwal gagal di server dengan
+# "spawn python ENOENT" sementara di laptop berjalan normal.
+#
+# Tidak ada requirements.txt untuk langkah yang jalan di server: tarik_calls.py,
+# urai_calls.py, tarik_harga.py, verifikasi_tp.py dan gabung.py hanya memakai
+# pustaka bawaan Python. openpyxl HANYA dibutuhkan cocok_excel.py, yang membaca
+# jurnal dari laptop dan memang tidak pernah jalan di Railway.
+
+[phases.setup]
+nixPkgs = ["nodejs_22", "python311"]
+
+# JANGAN menambahkan "npm ci" di sini. Nixpacks sudah menjalankannya di fase
+# install-nya sendiri, dan menjalankannya lagi di fase build menghapus seluruh
+# node_modules termasuk /app/node_modules/.cache yang saat itu sedang dipasang
+# sebagai cache mount - foldernya terkunci dan build gagal dengan EBUSY.
+# Kesalahan ini sudah menjatuhkan dua build di proyek ini.
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npm start"

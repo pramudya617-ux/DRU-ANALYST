@@ -100,20 +100,13 @@ hasilnya (`web/dasbor.html`) ikut ter-commit.
 
 1. Buat repo GitHub **private**, push seluruh folder ini.
 2. Railway → New Project → Deploy from GitHub repo.
-3. **Settings → Root Directory → `web`.** WAJIB, dan ini yang pertama kali
-   menggagalkan deploy: tanpa itu Railpack memeriksa akar repo, hanya menemukan
-   folder dan satu skrip Python, lalu berhenti dengan "could not determine how
-   to build the app". Railway sendiri menawarkan tombol **Set root directory**
-   di layar kegagalannya.
+3. **Root Directory dikosongkan** (akar repo). Aplikasi Next.js dan pipeline
+   Python harus berada dalam satu konteks build: Nixpacks hanya memeriksa satu
+   direktori, dan kalau ia hanya melihat Node, penjadwal gagal di server dengan
+   `spawn python ENOENT`. `nixpacks.toml` yang meminta `python311`.
 
-   Jangan menulis `buildCommand` sendiri. Nixpacks sudah memasang dependensi
-   lalu menjalankan `npm run build`; menambahkan "npm ci && npm run build"
-   membuat `npm ci` jalan dua kali, dan yang kedua gagal `EBUSY` karena
-   mencoba menghapus node_modules yang sebagiannya ter-mount sebagai cache.
-
-   Port TIDAK boleh dipaku di `npm start`. Railway menyuntikkan $PORT dan
-   healthcheck-nya menunggu di situ; `next start -p 3200` akan lolos build
-   lalu gagal deploy karena aplikasinya mendengar di port yang salah.
+   Jangan menulis `buildCommand` sendiri dan jangan memaku port di
+   `npm start` - keduanya sudah menjatuhkan build di proyek ini.
 4. Isi variabel berikut di Railway → Variables:
 
    | Variabel | Dari mana |
@@ -138,6 +131,21 @@ melihat "belum dikonfigurasi".
 
 **Uji dengan akun yang TIDAK punya role premium.** Ini yang paling sering
 dilewati, dan satu-satunya cara membuktikan gerbangnya benar-benar menutup.
+
+### Penjadwal di server
+
+`instrumentation.js` menyalakan `lib/penjadwal.js` saat proses Next.js boot.
+Tiap `JADWAL_MENIT` (bawaan 60) ia menjalankan `perbarui.py` - urutan langkah
+yang sama persis dengan di laptop - lalu menulis hasilnya ke `DATA_DIR`.
+
+- jam terakhir jalan disimpan di volume, jadi restart tidak memicu penarikan baru
+- satu pekerjaan pada satu waktu; yang tumpang tindih dilewati
+- tanpa `DRU_BOT_TOKEN` penarikan dilewati, bukan gagal berulang
+- `JADWAL_MATI=1` mematikannya tanpa redeploy ulang kode
+
+`/dasbor` membaca `DATA_DIR/dasbor.html` lebih dulu, lalu jatuh ke salinan yang
+ikut ter-commit - supaya deploy pertama tetap menampilkan sesuatu sebelum
+penarikan pertama selesai.
 
 ### Memperbarui data setelah tayang
 
