@@ -82,7 +82,7 @@ export function alamatBalik() {
   const dasar =
     process.env.APP_URL ||
     (process.env.RAILWAY_PUBLIC_DOMAIN && `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`) ||
-    "http://localhost:3100";
+    "http://localhost:3200";   // port dev DRU, lihat package.json
   return `${dasar.replace(/\/+$/, "")}/api/auth/discord`;
 }
 
