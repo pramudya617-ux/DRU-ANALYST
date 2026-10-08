@@ -36,7 +36,7 @@ import json
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -53,6 +53,10 @@ JEDA = 0.35
 # Berapa jam sebuah berkas dianggap masih segar. Lilin harian baru bertambah
 # sekali sehari, jadi 12 jam sudah jauh lebih rapat daripada yang dibutuhkan.
 UMUR_SEGAR = 12.0
+
+# Berapa hari tumpang tindih saat menarik inkremental. Bursa merevisi harga
+# penutupan beberapa hari setelahnya, dan lilin hari berjalan masih bergerak.
+OVERLAP_HARI = 5
 
 
 def muat(tk):
@@ -72,9 +76,26 @@ def basi(d, umur_jam):
     return (datetime.now(timezone.utc) - t).total_seconds() > umur_jam * 3600
 
 
-def tarik(tk, sejak):
-    """Satu ticker. Kembalikan (data, galat). Menghormati 429 dengan mundur."""
-    p1 = int(datetime.fromisoformat(sejak).replace(tzinfo=timezone.utc).timestamp())
+def tarik(tk, sejak, punya=None):
+    """Satu ticker. Kembalikan (data, galat). Menghormati 429 dengan mundur.
+
+    `punya` adalah lilin yang sudah tersimpan. Kalau ada, yang diminta hanya
+    sejak beberapa hari terakhir, bukan seluruh riwayat - lilin harian yang
+    sudah lewat bersifat final, dan menariknya ulang tiap hari berarti 99,8%
+    dari data yang dipindahkan adalah angka yang sudah kita punya.
+
+    Proyek DRC membayar pelajaran ini dengan ban IP dari Binance setelah
+    menarik ulang 6 bulan lilin untuk 98 aset setiap hari.
+    """
+    mulai = sejak
+    if punya:
+        # Mundur beberapa hari, bukan tepat di lilin terakhir: bursa merevisi
+        # harga penutupan, dan hari terakhir yang tersimpan bisa saja lilin
+        # setengah jadi dari sesi yang belum tutup.
+        akhir = datetime.fromisoformat(punya[-1][0])
+        mulai = (akhir - timedelta(days=OVERLAP_HARI)).date().isoformat()
+
+    p1 = int(datetime.fromisoformat(mulai).replace(tzinfo=timezone.utc).timestamp())
     p2 = int(time.time())
     url = API % (tk, p1, p2)
     for coba in range(4):
@@ -83,17 +104,25 @@ def tarik(tk, sejak):
                 urllib.request.Request(url, headers=UA), timeout=30).read()
             r = json.loads(raw)["chart"]["result"][0]
             q = r["indicators"]["quote"][0]
-            lilin = []
+            baru = []
             for i, ts in enumerate(r["timestamp"]):
                 h, l, c = q["high"][i], q["low"][i], q["close"][i]
                 # Hari libur sebagian kadang pulang sebagai null. Dilewati,
                 # bukan diisi nol - nol akan terbaca sebagai stoploss kena.
                 if h is None or l is None:
                     continue
-                lilin.append([datetime.fromtimestamp(ts, timezone.utc).date().isoformat(),
-                              round(h, 4), round(l, 4), round(c, 4) if c else None])
-            # Meta ikut disimpan supaya TradingView tidak perlu dipanggil
-            # sama sekali: harga terakhir dan bursanya ada di sini juga.
+                baru.append([datetime.fromtimestamp(ts, timezone.utc).date().isoformat(),
+                             round(h, 4), round(l, 4), round(c, 4) if c else None])
+
+            # Gabung: yang baru menimpa yang lama pada tanggal yang sama, karena
+            # revisi bursa selalu lebih benar daripada yang tersimpan.
+            if punya:
+                peta = {c[0]: c for c in punya}
+                peta.update({c[0]: c for c in baru})
+                lilin = [peta[k] for k in sorted(peta)]
+            else:
+                lilin = baru
+
             m = r.get("meta") or {}
             return {"ticker": tk, "sejak": sejak, "lilin": lilin,
                     "hargaKini": m.get("regularMarketPrice"),
@@ -129,22 +158,36 @@ def main():
         umur = float(sys.argv[sys.argv.index("--umur") + 1])
     paksa = "--semua" in sys.argv
 
-    perlu, lewat = [], 0
+    # Ticker yang SELURUH call-nya sudah tertutup tidak perlu harga baru lagi:
+    # hasilnya sudah final, dan lilin sesudahnya tidak mengubah apa pun. Yang
+    # tersisa hanya yang masih punya posisi berjalan atau muncul di Invest -
+    # dan itulah satu-satunya yang benar-benar butuh harga sekarang.
+    hidup = {b["ticker"] for b in ds["calls"] if b.get("status") == "ongoing"}
+    hidup |= {b["ticker"] for b in ds.get("invest", [])}
+
+    perlu, lewat, beku = [], 0, 0
     for tk, tgl in sorted(awal.items()):
         d = muat(tk)
-        if paksa or basi(d, umur) or (d and d.get("sejak", "9999") > tgl):
+        if not d:
+            perlu.append((tk, tgl))          # belum pernah ditarik sama sekali
+            continue
+        if not paksa and tk not in hidup:
+            beku += 1                        # semua call-nya sudah selesai
+            continue
+        if paksa or basi(d, umur) or d.get("sejak", "9999") > tgl:
             perlu.append((tk, tgl))
         else:
             lewat += 1
 
-    print("ticker total %d | masih segar %d | akan ditarik %d"
-          % (len(awal), lewat, len(perlu)))
+    print("ticker total %d | selesai (beku) %d | masih segar %d | ditarik %d"
+          % (len(awal), beku, lewat, len(perlu)))
     if not perlu:
         return
 
     ok = gagal = 0
     for i, (tk, tgl) in enumerate(perlu, 1):
-        d, galat = tarik(tk, tgl)
+        lama = muat(tk)
+        d, galat = tarik(tk, tgl, (lama or {}).get("lilin"))
         if galat:
             gagal += 1
             print("   %-6s GAGAL %s" % (tk, galat))
