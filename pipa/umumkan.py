@@ -46,7 +46,7 @@ _muat_env()
 API = "https://discord.com/api/v10"
 UA = {"User-Agent": "DiscordBot (https://localhost, 1.0)"}
 
-CHANNEL = os.environ.get("UMUMKAN_CHANNEL", "1515391330791067819")  # #📣︱Pengumuman
+CHANNEL = os.environ.get("UMUMKAN_CHANNEL", "1557513800486359151")  # analyst-tracker
 GUILD = "1270940870408929330"
 ROLE_PING = "1273612147590434816"        # @Premium
 
