@@ -90,7 +90,10 @@ KAKI = "Daily Rekom US Stocks"
 # jadi bagian dari pesan itu sendiri dan hidup selama pesannya hidup.
 #
 # Boleh diisi URL (diunduh dulu) atau jalur berkas di laptop.
-BANNER = os.environ.get("UMUMKAN_BANNER", "")
+# Bawaannya banner yang ikut repo, jadi tidak perlu diingat tiap kali.
+# Boleh ditimpa lewat UMUMKAN_BANNER kalau mau pakai yang lain.
+BANNER = os.environ.get("UMUMKAN_BANNER") or str(
+    pathlib.Path(__file__).resolve().parent.parent / "aset" / "banner.png")
 
 # Batas lampiran server tanpa boost adalah 10 MB. Diperiksa sendiri supaya
 # gagalnya berbunyi jelas, bukan HTTP 413 yang tidak menyebut apa-apa.
