@@ -30,7 +30,13 @@ import datetime
 import json
 from pathlib import Path
 
-import openpyxl
+# openpyxl HANYA dibutuhkan saat membaca .xlsx di laptop. Di Railway modulnya
+# tidak terpasang DAN berkas jurnalnya memang tidak ada, jadi impornya dibuat
+# opsional - bukan dihapus, karena di laptop ia tetap sumber kebenarannya.
+try:
+    import openpyxl
+except ModuleNotFoundError:
+    openpyxl = None
 
 HERE = Path(__file__).resolve().parent
 # Skrip pipeline tinggal di pipa/; data dan halaman ada di akar proyek.
@@ -61,6 +67,19 @@ def angka(v):
 BUKAN_TICKER = {"CLOSE", "OPEN", "SL", "TP", "TP1", "TP2", "TP3", "TP4",
                 "ENTRY", "EXIT", "BEP", "CL", "NO", "DATE", "NAME", "TOTAL"}
 
+# Hasil parse jurnal dibekukan ke JSON dan ikut ter-commit.
+#
+# Jurnalnya statis: Oracle sudah nonaktif, dan baris Iron sebelum September
+# 2025 mendahului channel Discord-nya sehingga tidak akan bertambah. Tanpa
+# berkas beku ini, dataset yang dibangun di server kehilangan 176 call Oracle
+# dan 70 call Iron - bukan gagal berisik, tapi diam-diam menyusut.
+BEKU = Path(__file__).resolve().parent.parent / "data" / "jurnal"
+
+
+def _beku(nama_berkas):
+    return BEKU / (Path(nama_berkas).stem + ".json")
+
+
 _singgahan = {}
 
 
@@ -79,6 +98,16 @@ def baca_jurnal(path):
     """
     if str(path) in _singgahan:
         return _singgahan[str(path)]
+
+    # Tanpa openpyxl atau tanpa berkasnya - keadaan normal di server - pakai
+    # hasil parse yang dibekukan. Kalau itu pun tidak ada, barulah kosong.
+    if openpyxl is None or not Path(path).is_file():
+        f = _beku(path)
+        if f.is_file():
+            baris = json.loads(f.read_text(encoding="utf-8"))
+            _singgahan[str(path)] = baris
+            return baris
+        return []
     # read_only=True tidak dipakai: mode itu tidak mendukung ws.cell() akses
     # acak, dan pembacaan di bawah memang butuh indeks kolom relatif.
     wb = openpyxl.load_workbook(path, data_only=True)
@@ -128,7 +157,27 @@ def baca_jurnal(path):
     return baris
 
 
+def bekukan():
+    """Tulis ulang berkas beku dari .xlsx. Hanya berarti di laptop."""
+    if openpyxl is None:
+        print("openpyxl tidak ada, pembekuan dilewati")
+        return
+    BEKU.mkdir(parents=True, exist_ok=True)
+    for nama, path in JURNAL.items():
+        if not path.is_file():
+            print("  %-7s .xlsx tidak ada, dilewati" % nama)
+            continue
+        _singgahan.pop(str(path), None)
+        baris = baca_jurnal(path)
+        _beku(path).write_text(json.dumps(baris, ensure_ascii=False), encoding="utf-8")
+        print("  %-7s %d baris dibekukan" % (nama, len(baris)))
+
+
 def main():
+    if "--bekukan" in sys.argv:
+        bekukan()
+        return
+
     calls = json.loads((AKAR / "data" / "calls.json").read_text(encoding="utf-8"))
 
     for nama, path in JURNAL.items():

@@ -23,6 +23,8 @@ data/harga/
 data/*.log
 data/*.txt
 !data/koreksi.json
+# Jurnal beku WAJIB ikut: server tidak punya openpyxl maupun berkas .xlsx-nya.
+!data/jurnal/
 
 # ---- Hasil akhir ----
 # Dibangun ulang tiap kali pipeline jalan. web/dasbor.html TIDAK diabaikan:

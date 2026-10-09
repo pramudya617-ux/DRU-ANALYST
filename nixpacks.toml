@@ -3,10 +3,16 @@
 # diminta eksplisit - tanpa baris ini penjadwal gagal di server dengan
 # "spawn python ENOENT" sementara di laptop berjalan normal.
 #
-# Tidak ada requirements.txt untuk langkah yang jalan di server: tarik_calls.py,
-# urai_calls.py, tarik_harga.py, verifikasi_tp.py dan gabung.py hanya memakai
-# pustaka bawaan Python. openpyxl HANYA dibutuhkan cocok_excel.py, yang membaca
-# jurnal dari laptop dan memang tidak pernah jalan di Railway.
+# Tidak ada requirements.txt: seluruh langkah yang jalan di server hanya
+# memakai pustaka bawaan Python.
+#
+# openpyxl TIDAK dipasang, dan berkas .xlsx-nya pun tidak ada di sini - jurnal
+# aslinya ada di laptop. Hasil parsenya dibekukan ke data/jurnal/*.json dan
+# ikut ter-commit; cocok_excel.py membaca berkas beku itu kalau .xlsx tidak
+# tersedia. Tanpa pembekuan itu, dataset yang dibangun server kehilangan 176
+# call Oracle dan 70 call Iron - menyusut diam-diam, bukan gagal berisik.
+#
+# Kalau jurnalnya berubah, jalankan di laptop:  python pipa/cocok_excel.py --bekukan
 
 [phases.setup]
 nixPkgs = ["nodejs_22", "python311"]

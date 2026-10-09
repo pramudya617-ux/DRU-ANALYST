@@ -216,17 +216,15 @@ def main():
             "sumber", "gambar", "pasti")} | {"asal": "discord", "_status": c.get("status")})
 
     for nama, path in JURNAL.items():
-        if path.exists():
-            for b in dari_excel(nama, path):
-                b["_status"] = None
-                semua.append(b)
+        for b in dari_excel(nama, path):
+            b["_status"] = None
+            semua.append(b)
 
     # Status Excel diambil dari kolomnya sendiri; Discord sudah membawa sendiri.
     xl_status = {}
     for nama, path in JURNAL.items():
-        if path.exists():
-            for b in baca_jurnal(path):
-                xl_status[(nama, b["ticker"], b["tanggal"])] = b["status"]
+        for b in baca_jurnal(path):
+            xl_status[(nama, b["ticker"], b["tanggal"])] = b["status"]
 
     for b in semua:
         tp_ada = [i for i in (1, 2, 3, 4) if b.get("tp%d" % i)]
@@ -244,8 +242,6 @@ def main():
     # jadi "ongoing" di Excel sering hanya berarti belum sempat diperbarui.
     tambal = 0
     for nama, path in JURNAL.items():
-        if not path.exists():
-            continue
         for b in semua:
             if b["analis"] != nama or b["asal"] != "discord" or b["status"] != "ongoing":
                 continue
