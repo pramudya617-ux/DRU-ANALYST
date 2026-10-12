@@ -3,10 +3,14 @@
   "analis": [
     {
       "nama": "Tyler",
-      "userId": "368717040648716289",
+      "userId": [
+        "368717040648716289",
+        "1557972116089864227"
+      ],
       "kanal": "1284623046530830418",
       "aktif": true,
-      "sejakJurnal": "2024-09-16"
+      "sejakJurnal": "2024-09-16",
+      "catatan": "Dua akun: yang kedua dibuat Oktober 2026 setelah akun lamanya ditinggalkan. Channelnya tetap sama, jadi call lama dan baru menyambung di analyst yang sama."
     },
     {
       "nama": "Iron",

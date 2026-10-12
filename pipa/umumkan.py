@@ -8,9 +8,10 @@ terus. Sekali POST, tombolnya menempel di pesan itu selamanya.
 Aman dipajang di channel yang dilihat banyak orang: yang mengklik tetap kena
 gerbang login, dan yang bukan pemilik role premium ditolak di halaman depan.
 
-    python umumkan.py            -> hanya menampilkan yang AKAN dikirim
-    python umumkan.py --kirim    -> benar-benar mengirim
-    python umumkan.py --uji      -> periksa susunan multipart, tanpa jaringan
+    python umumkan.py                 -> hanya menampilkan yang AKAN dikirim
+    python umumkan.py --kirim         -> benar-benar mengirim
+    python umumkan.py --sunting <id>  -> perbaiki pesan yang sudah terkirim
+    python umumkan.py --uji           -> periksa susunan multipart, tanpa jaringan
 
 Bawaannya menampilkan saja. Pesan ke channel member tidak bisa ditarik kembali
 tanpa jejak, jadi mengirim harus diminta secara eksplisit.
@@ -25,12 +26,12 @@ import urllib.request
 
 
 def _muat_env():
-    """Isi environment dari web/.env.local kalau belum ada.
+    """Isi environment dari .env.local di akar proyek kalau belum ada.
 
     Nilai yang SUDAH ada di environment tidak ditimpa, karena di situlah token
     yang diset lewat setx berada - dan itu yang menang.
     """
-    f = pathlib.Path(__file__).resolve().parent.parent / "web" / ".env.local"
+    f = pathlib.Path(__file__).resolve().parent.parent / ".env.local"
     if not f.exists():
         return
     for baris in f.read_text(encoding="utf-8-sig").splitlines():
@@ -70,7 +71,9 @@ Klik tombol di bawah, lalu *Authorize* dengan akun Discord kamu. Tidak ada kata 
 
 **Biar lancar**
 • **Desktop**: buka lewat browser yang sudah login Discord
-• **HP**: buka link-nya langsung dari aplikasi Discord
+• **HP**: login **discord.com** dulu di Safari/Chrome, baru tap tombol di bawah. Setelah terbuka, pilih ikon *share* atau *⋯* → **Open in Safari**
+
+Browser bawaan Discord punya sesi sendiri yang terpisah, jadi kalau berhenti di situ kamu akan diminta login berulang.
 
 > Hanya pemilik role <@&{ROLE_PING}> ke atas yang bisa membukanya. Kalau ditolak, pastikan browser kamu masuk ke akun Discord yang benar."""
 
@@ -151,14 +154,24 @@ def ambil_banner():
     return f"banner.{JENIS[mime]}", isi, mime
 
 
-def kirim_pesan(pesan, lampiran):
+def kirim_pesan(pesan, lampiran, mid=None):
     """POST pesannya. Dengan lampiran, badannya multipart - bukan JSON biasa.
 
     Ditulis tangan alih-alih memakai pustaka: satu berkas, satu bidang JSON,
     dan requests bukan dependency proyek ini.
+
+    Dengan `mid`, ia MENYUNTING pesan itu alih-alih membuat yang baru - dan
+    bannernya DIUNGGAH ULANG, bukan ditunjuk kembali. Alasannya tidak kentara:
+    begitu sebuah lampiran dipakai embed lewat attachment://, Discord
+    mengeluarkannya dari daftar "attachments" pesan itu. Jadi pada suntingan,
+    attachment://banner.png tidak menemukan apa pun lagi dan gambarnya lenyap.
+    Mengunggah ulang 222 KB jauh lebih murah daripada pengumuman terpin yang
+    kehilangan bannernya.
     """
+    jalur = f"/channels/{CHANNEL}/messages" + (f"/{mid}" if mid else "")
+    metode = "PATCH" if mid else None
     if not lampiran:
-        return minta(f"/channels/{CHANNEL}/messages", pesan)
+        return minta(jalur, pesan, metode=metode)
 
     nama, isi, mime = lampiran
     batas = "----drc" + secrets.token_hex(12)
@@ -180,11 +193,12 @@ def kirim_pesan(pesan, lampiran):
     badan += b"--" + batas.encode() + b"--\r\n"
 
     req = urllib.request.Request(
-        f"{API}/channels/{CHANNEL}/messages",
+        f"{API}{jalur}",
         data=bytes(badan),
         headers={**UA,
                  "Authorization": f"Bot {os.environ.get('DRU_BOT_TOKEN', '')}",
                  "Content-Type": f"multipart/form-data; boundary={batas}"},
+        method=metode,
     )
     with urllib.request.urlopen(req, timeout=120) as r:
         return json.loads(r.read().decode("utf-8"))
@@ -350,6 +364,14 @@ def main():
     if not bisa["kirim"]:
         sys.exit("\nbot tidak punya izin Send Messages di channel ini - berhenti.")
 
+    mid = None
+    if "--sunting" in sys.argv:
+        i = sys.argv.index("--sunting")
+        if i + 1 >= len(sys.argv):
+            sys.exit("--sunting butuh ID pesannya")
+        mid = sys.argv[i + 1]
+        print(f"mode    : SUNTING pesan {mid} (banner diunggah ulang)")
+
     if "--kirim" not in sys.argv:
         print("\n--- tampilan akhir ---\n")
         if lampiran:
@@ -363,11 +385,13 @@ def main():
         return
 
     try:
-        hasil = kirim_pesan(pesan, lampiran)
+        hasil = kirim_pesan(pesan, lampiran, mid)
     except urllib.error.HTTPError as e:
         sys.exit(f"gagal: HTTP {e.code} {e.read().decode('utf-8', 'replace')[:300]}")
-    print(f"\nterkirim: https://discord.com/channels/{GUILD}/{CHANNEL}/{hasil['id']}")
-    print("saran: pin pesannya supaya tidak perlu diposting ulang.")
+    kata = "disunting" if mid else "terkirim"
+    print(f"\n{kata}: https://discord.com/channels/{GUILD}/{CHANNEL}/{hasil['id']}")
+    if not mid:
+        print("saran: pin pesannya supaya tidak perlu diposting ulang.")
 
 
 if __name__ == "__main__":

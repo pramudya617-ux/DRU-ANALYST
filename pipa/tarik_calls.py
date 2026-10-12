@@ -208,8 +208,16 @@ def main():
     # Segmen (mis. Invest) ikut ditarik ke berkas yang sama. Isinya bukan call
     # trading, jadi urai_calls.py mengabaikannya - tapi menariknya di sini
     # berarti hanya ada SATU tempat yang menyentuh Discord.
-    sasaran = [(a["nama"], a["kanal"], a.get("userId", "")) for a in cfg["analis"]]
-    sasaran += [(k, v["kanal"], "") for k, v in cfg.get("segmen", {}).items()]
+    # "userId" boleh satu ID atau daftar: seorang analyst bisa berganti akun
+    # Discord dan tetap memakai channel yang sama. Angkanya hanya diagnostik -
+    # yang disimpan tetap SELURUH isi channel - tapi tanpa ID barunya,
+    # hitungannya pelan-pelan turun ke nol dan terbaca seperti kerusakan.
+    def _uid(a):
+        u = a.get("userId", "")
+        return {u} if isinstance(u, str) else set(u)
+
+    sasaran = [(a["nama"], a["kanal"], _uid(a)) for a in cfg["analis"]]
+    sasaran += [(k, v["kanal"], set()) for k, v in cfg.get("segmen", {}).items()]
 
     keluar = AKAR / "data" / "calls_mentah.json"
     # Dimuat lebih dulu, BUKAN dimulai kosong: dengan --nama, menulis dict
@@ -229,7 +237,7 @@ def main():
             print("      dilewati, isi lama dipertahankan (%d pesan)"
                   % len(hasil.get(nama, [])))
             continue
-        milik = [p for p in pesan if p["penulisId"] == uid] if uid else pesan
+        milik = [p for p in pesan if p["penulisId"] in uid] if uid else pesan
         hasil[nama] = pesan
         print("      %d pesan, %d dari %s sendiri" % (len(pesan), len(milik), nama))
 
