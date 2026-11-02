@@ -116,12 +116,32 @@ def angka(s):
     return float(t.replace(",", "."))
 
 
+# Kata yang muncul sebagai JUDUL tapi bukan emiten. Sebagian analis menulis
+# jenis callnya di baris pertama dan tickernya di baris kedua:
+#
+#     # SWING
+#     # FCX
+#     ENTRY : 65.9
+#
+# Tanpa daftar ini, call FCX di atas tercatat dengan ticker "SWING" - lalu
+# gagal ditarik harganya (HTTP 404) dan tidak pernah bisa diverifikasi.
+# Daftarnya disusun dari pemindaian seluruh riwayat, bukan ditebak: hanya kata
+# yang TIDAK PERNAH sekali pun muncul sebagai $TICKER yang masuk sini.
+KATA_JENIS = {"SWING", "CALLS", "LIVE", "ENTRY", "ALERT", "SETUP", "IDEA"}
+
+
 def ticker(teks):
     m = RE_TICKER_DOLAR.search(teks)
     if m:
         return m.group(1)
-    m = RE_TICKER_JUDUL.search(teks)
-    return m.group(1) if m else None
+    # Judul pertama belum tentu tickernya; lewati yang jelas bukan, lalu coba
+    # judul berikutnya. KATA_HASIL ikut dipakai supaya "# TP" dan "# FULL"
+    # tidak berubah jadi emiten juga.
+    for m in RE_TICKER_JUDUL.finditer(teks):
+        kata = m.group(1)
+        if kata not in KATA_JENIS and kata not in KATA_HASIL:
+            return kata
+    return None
 
 
 def urai_call(teks):

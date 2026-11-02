@@ -142,6 +142,26 @@ def tarik(tk, sejak, punya=None):
     return None, "ditolak terus"
 
 
+URUT_TP = ("TP1", "TP2", "TP3", "TP4")
+
+
+def selesai(b):
+    """True kalau tidak ada lagi yang bisa diubah oleh harga baru.
+
+    Pertanyaannya bukan "apakah posisinya masih dibuka", melainkan "apakah
+    statusnya masih mungkin berubah". SL sudah mentok ke bawah; TP tertinggi
+    yang ditulis analis sudah mentok ke atas; sisanya masih bergerak.
+    """
+    st = (b.get("status") or "").upper()
+    if st in ("SL", "BEP", "CLOSED") or b.get("statusDikunci"):
+        return True
+    if st in URUT_TP:
+        puncak_target = max((i for i in range(1, 5)
+                             if b.get("tp%d" % i) is not None), default=0)
+        return URUT_TP.index(st) + 1 >= puncak_target
+    return False        # ongoing, atau status tak dikenal: tetap diikuti
+
+
 def main():
     GUDANG.mkdir(parents=True, exist_ok=True)
     ds = json.loads((AKAR / "data" / "dataset.json").read_text(encoding="utf-8"))
@@ -159,10 +179,15 @@ def main():
     paksa = "--semua" in sys.argv
 
     # Ticker yang SELURUH call-nya sudah tertutup tidak perlu harga baru lagi:
-    # hasilnya sudah final, dan lilin sesudahnya tidak mengubah apa pun. Yang
-    # tersisa hanya yang masih punya posisi berjalan atau muncul di Invest -
-    # dan itulah satu-satunya yang benar-benar butuh harga sekarang.
-    hidup = {b["ticker"] for b in ds["calls"] if b.get("status") == "ongoing"}
+    # hasilnya sudah final, dan lilin sesudahnya tidak mengubah apa pun.
+    #
+    # "Tertutup" BUKAN berarti "bukan ongoing". Call yang kena TP1 masih hidup
+    # selama analisnya menulis TP2 atau TP3 - dan justru itu yang paling sering
+    # diumumkan belakangan ("TP2 HIT for $LMT"). Versi pertama aturan ini
+    # menyamakan TP1 dengan selesai, dan akibatnya 155 dari 206 ticker membeku
+    # dengan lilin berumur 28 hari: klaim TP2 analis tidak akan pernah bisa
+    # dikonfirmasi harga, karena harganya memang berhenti ditarik.
+    hidup = {b["ticker"] for b in ds["calls"] if not selesai(b)}
     hidup |= {b["ticker"] for b in ds.get("invest", [])}
 
     perlu, lewat, beku = [], 0, 0
@@ -179,7 +204,7 @@ def main():
         else:
             lewat += 1
 
-    print("ticker total %d | selesai (beku) %d | masih segar %d | ditarik %d"
+    print("ticker total %d | tuntas (beku) %d | masih segar %d | ditarik %d"
           % (len(awal), beku, lewat, len(perlu)))
     if not perlu:
         return
